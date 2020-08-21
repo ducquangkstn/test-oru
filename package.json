@@ -24,6 +24,10 @@
         "@nomiclabs/buidler-web3": "1.2.0",
         "@openzeppelin/contracts": "2.5.0",
         "@openzeppelin/test-helpers": "0.5.5",
+        "@types/chai": "^4.2.12",
+        "@types/mocha": "^8.0.2",
+        "@types/node": "^14.0.27",
+        "chai": "^4.2.0",
         "chai-as-promised": "7.1.1",
         "chai-bn": "0.2.1",
         "prettier": "2.0.2",
@@ -31,6 +35,11 @@
         "solhint": "2.3.1",
         "solhint-plugin-prettier": "0.0.4",
         "solidity-coverage": "0.7.0-beta.3",
+        "ts-node": "^8.10.2",
+        "typescript": "^3.9.7",
         "web3": "1.2.6"
+    },
+    "dependencies": {
+        "web3-eth-abi": "^1.2.11"
     }
 }

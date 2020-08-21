@@ -1,118 +1,248 @@
 pragma solidity 0.6.6;
 
-import { RollUpLib } from "./libraries/Tree.sol";
-import { Hash } from "./libraries/Hash.sol";
-import { Utils } from "./libraries/Utils.sol";
-import "@nomiclabs/buidler/console.sol";
 pragma experimental ABIEncoderV2;
 
-contract L2 {
-    uint256 constant STATE_TREE_DEEP = 161; // 40 * 4 + 1
+import {RollUpLib} from "./libraries/Tree.sol";
+import {Utils} from "./libraries/Utils.sol";
+import {Bytes} from "./libraries/Bytes.sol";
+import "./Operations.sol";
 
-    uint256[] public roots;
+import "@nomiclabs/buidler/console.sol";
 
-    event SubmitDeposit(uint blkNumber, uint root, bool isValid);
-    event SubmitTransfer(uint blkNumber, uint root, bool isValid);
+contract L2 is Operations {
+    uint256 constant FRAUD_PROOF_HASH = uint256(-1);
+
+    enum OpType {Noop, Transfer, Deposit}
+
+    struct BlockStore {
+        uint256 rootHash;
+        uint256 blockHash;
+        bool isConfirmed;
+    }
+
+    BlockStore[] public blocks;
 
     constructor() public {
-        // uint[] memory preHash = Hash.keccak().preHashedZero;
-        // console.log(bytes32(preHash[1]));
-        roots.push(Hash.keccak().preHashedZero[STATE_TREE_DEEP - 1]);
+        blocks.push(BlockStore({blockHash: 0, rootHash: 0, isConfirmed: true}));
     }
 
-
-    /// @dev sender in calldata to watchtower to prove that operator signed a message with blockdata
-    function updateRoot(uint256 newRoot) external payable {
-        roots.push(newRoot);
+    function lastestBlock()
+        external
+        view
+        returns (
+            uint256 blockHash,
+            uint256 rootHash,
+            uint256 blockNumber
+        )
+    {
+        blockHash = blocks[blocks.length - 1].blockHash;
+        rootHash = blocks[blocks.length - 1].rootHash;
+        blockNumber = blocks.length - 1;
     }
 
-    /// @dev  Currently, this only checks if the new block root is match with given new block root
-    function submitProofDeposit(uint blkNumber, address sender, uint beforeAmount, uint amount, uint[] calldata siblings) external {
-        require(siblings.length == STATE_TREE_DEEP - 1, "unexpected siblings length");
-        uint256 preRoot = roots[blkNumber - 1];
+    function submitBlock(
+        uint256 _preHash,
+        uint256 _rootHash,
+        uint256 _blockHash,
+        bytes calldata /* pubData */
+    ) external {
+        require(
+            blocks[blocks.length - 1].blockHash == _preHash,
+            "prehash not match"
+        );
+        blocks.push(
+            BlockStore({
+                rootHash: _rootHash,
+                blockHash: _blockHash,
+                isConfirmed: false
+            })
+        );
+    }
 
-        require(RollUpLib.merkleProof(Hash.keccak(),
-            preRoot,
-            beforeAmount,
-            uint256(sender),
-            siblings
-        ), "prev Root is not match with given proof");
+    function simulatedBlock(
+        uint256 index,
+        bytes calldata _pubData,
+        bytes[] calldata proof
+    ) external {
+        BlockStore memory prevBlockStore = blocks[index - 1];
+        BlockStore memory currentBlockStore = blocks[index];
 
-        uint256 newRoot = roots[blkNumber];
-        uint256 newBalance = beforeAmount + amount;
+        bytes memory pubData = _pubData;
+        {
+            uint256 txsHash = uint256(keccak256(pubData));
+            require(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            prevBlockStore.blockHash,
+                            currentBlockStore.rootHash,
+                            txsHash
+                        )
+                    )
+                ) == currentBlockStore.blockHash,
+                "blockHash is missmatch"
+            );
+        }
+        {
+            uint256 rootHash = prevBlockStore.rootHash;
 
-        bool isValid = RollUpLib.merkleProof(Hash.keccak(),
-            newRoot,
-            newBalance,
-            uint256(sender),
-            siblings
+            uint256 offset = 0;
+            uint256 proofIndex = 0;
+
+            while (offset < pubData.length) {
+                OpType opType = OpType(uint8(pubData[offset]));
+                offset++;
+                if (opType == OpType.Deposit) {
+                    Deposit memory deposit = readDepositData(pubData, offset);
+
+                    rootHash = simulateDeposit(
+                        deposit,
+                        rootHash,
+                        proof[proofIndex]
+                    );
+                    offset += DEPOSIT_MSG_SIZE;
+                } else if (opType == OpType.Transfer) {
+                    Transfer memory transfer = readTransferData(
+                        pubData,
+                        offset
+                    );
+                    rootHash = simulateTransfer(
+                        transfer,
+                        rootHash,
+                        proof[proofIndex]
+                    );
+                    offset += TRANSFER_MSG_SIZE;
+                } else {
+                    revert("unexpected op type"); // op type is invalid
+                }
+                proofIndex++;
+                require(rootHash != FRAUD_PROOF_HASH, "op is invalid"); // slash and revert
+            }
+            require(
+                rootHash == currentBlockStore.rootHash,
+                "final root hash is miss-match"
+            ); //slash and revert
+        }
+
+        blocks[index].isConfirmed = true;
+    }
+
+    function simulateDeposit(
+        Deposit memory deposit,
+        uint256 preRootHash,
+        bytes memory proof
+    ) internal pure returns (uint256 newRootHash) {
+        DepositProof memory depositProof = readDepositProof(proof);
+        uint256 accountHash;
+        uint256 accountRootHash;
+        //verify the prevRoot is match with root hash of prev block
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            deposit.tokenId,
+            depositProof.tokenProof
+        );
+        accountHash = getAccountHash(accountRootHash, depositProof.nonce);
+        require(
+            RollUpLib.merkleAccountRoot(
+                accountHash,
+                deposit.senderId,
+                depositProof.accountSiblings
+            ) == preRootHash,
+            "L2::simulateDeposit: pre rootHash is miss-match"
         );
 
-        emit SubmitDeposit(blkNumber, newRoot, isValid);
+        depositProof.tokenProof[0] += deposit.amount;
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            deposit.tokenId,
+            depositProof.tokenProof
+        );
 
-        if (!isValid) {
-            uint revertBlock = roots.length - blkNumber;
-            for (uint i = 0; i < revertBlock; i++) {
-                roots.pop();
-            }
-        }
+        if (deposit.nonce != depositProof.nonce) return FRAUD_PROOF_HASH;
+
+        accountHash = getAccountHash(accountRootHash, depositProof.nonce + 1);
+        newRootHash = RollUpLib.merkleAccountRoot(
+            accountHash,
+            deposit.senderId,
+            depositProof.accountSiblings
+        );
     }
 
-    // full block on call-data
-    // simulate more than 1 tx
-    // root tree to 2^32 node
-    // node to ERC20
+    function simulateTransfer(
+        Transfer memory transfer,
+        uint256 preRootHash,
+        bytes memory proof
+    ) internal pure returns (uint256 newRootHash) {
+        TransferProof memory transferProof = readTransferProof(proof);
+        uint256 accountHash;
+        uint256 accountRootHash;
 
-    function submitProofTransfer(uint blkNumber, address sender, address receiver, uint beforeAmountSender, uint beforeAmountReceiver,
-        uint amount, uint[][2] calldata siblings) external {
-            require(siblings[0].length == STATE_TREE_DEEP - 1, "unexpected siblings length");
-            uint256 preRoot = roots[blkNumber - 1];
-            require(RollUpLib.merkleProof(Hash.keccak(),
-                preRoot,
-                beforeAmountSender,
-                uint256(sender),
-                siblings[0]
-            ), "prev Root is not match with given proof for sender");
+        //verify the prevRoot is match with root hash of prev block
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            transfer.tokenId,
+            transferProof.senderTokenProof
+        );
+        accountHash = getAccountHash(
+            accountRootHash,
+            transferProof.senderNonce
+        );
+        require(
+            RollUpLib.merkleAccountRoot(
+                accountHash,
+                transfer.senderId,
+                transferProof.senderAccountSiblings
+            ) == preRootHash,
+            "L2::simulateTransfer pre rootHash is miss-match"
+        );
 
-            uint256 newValue = beforeAmountSender - amount;
-
-            preRoot = RollUpLib.merkleRoot(Hash.keccak(),
-                newValue,
-                uint256(sender),
-                siblings[0]
-            );
-
-            require(RollUpLib.merkleProof(Hash.keccak(),
-                preRoot,
-                beforeAmountReceiver,
-                uint256(receiver),
-                siblings[1]
-            ), "prev Root is not match with given proof for receiver");
-
-            newValue = beforeAmountReceiver + amount;
-            uint256 newRoot = roots[blkNumber];
-            bool isValid = RollUpLib.merkleProof(Hash.keccak(),
-                newRoot,
-                newValue,
-                uint256(receiver),
-                siblings[1]
-            );
-            emit SubmitTransfer(blkNumber, newRoot, isValid);
-
-            if (!isValid) {
-                uint revertBlock = roots.length - blkNumber;
-                for (uint i = 0; i < revertBlock; i++) {
-                    roots.pop();
-                }
-            }
-
-        }
-
-    function getRoot(uint256 balance, address sender, uint[] calldata siblings) external pure returns (uint256){
-        return RollUpLib.merkleRoot(Hash.keccak(),
-                balance,
-                uint256(sender),
-                siblings
-            );
+        if (transfer.nonce != transferProof.senderNonce)
+            return FRAUD_PROOF_HASH;
+        if (transferProof.senderTokenProof[0] < transfer.amount)
+            return FRAUD_PROOF_HASH;
+        transferProof.senderTokenProof[0] -= transfer.amount;
+        // calculate new root hash
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            transfer.tokenId,
+            transferProof.senderTokenProof
+        );
+        accountHash = getAccountHash(
+            accountRootHash,
+            transferProof.senderNonce + 1
+        );
+        newRootHash = RollUpLib.merkleAccountRoot(
+            accountHash,
+            transfer.senderId,
+            transferProof.senderAccountSiblings
+        );
+        //verify receiver proof is correct
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            transfer.tokenId,
+            transferProof.receiverTokenProof
+        );
+        accountHash = getAccountHash(
+            accountRootHash,
+            transferProof.receiverNonce
+        );
+        require(
+            RollUpLib.merkleAccountRoot(
+                accountHash,
+                transfer.receiverId,
+                transferProof.receiverAccountSiblings
+            ) == newRootHash,
+            "L2::simulateTransfer pre rootHash is miss-match"
+        );
+        transferProof.receiverTokenProof[0] += transfer.amount;
+        // calculate the new root hash
+        accountRootHash = RollUpLib.merkleTokenRoot(
+            transfer.tokenId,
+            transferProof.receiverTokenProof
+        );
+        accountHash = getAccountHash(
+            accountRootHash,
+            transferProof.receiverNonce
+        );
+        newRootHash = RollUpLib.merkleAccountRoot(
+            accountHash,
+            transfer.receiverId,
+            transferProof.receiverAccountSiblings
+        );
     }
 }

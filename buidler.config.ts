@@ -1,3 +1,6 @@
+import { task, usePlugin } from "@nomiclabs/buidler/config";
+const web3 = require('web3')
+
 usePlugin('@nomiclabs/buidler-truffle5')
 
 // This is a sample Buidler task. To learn how to create your own go to
