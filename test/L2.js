@@ -1,4 +1,3 @@
-const Test = artifacts.require('Test');
 const L2 = artifacts.require('L2');
 
 const {expectEvent, expectRevert} = require('@openzeppelin/test-helpers');

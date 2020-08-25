@@ -1,5 +1,6 @@
 pragma solidity 0.6.6;
 
+
 // Functions named bytesToX, except bytesToBytes20, where X is some type of size N < 32 (size of one word)
 // implements the following algorithm:
 // f(bytes memory input, uint offset) -> X out
@@ -9,35 +10,19 @@ pragma solidity 0.6.6;
 // 2) We load W from memory into out, last N bytes of W are placed into out
 
 library Bytes {
-    function toBytesFromUInt16(uint16 self)
-        internal
-        pure
-        returns (bytes memory _bts)
-    {
+    function toBytesFromUInt16(uint16 self) internal pure returns (bytes memory _bts) {
         return toBytesFromUIntTruncated(uint256(self), 2);
     }
 
-    function toBytesFromUInt24(uint24 self)
-        internal
-        pure
-        returns (bytes memory _bts)
-    {
+    function toBytesFromUInt24(uint24 self) internal pure returns (bytes memory _bts) {
         return toBytesFromUIntTruncated(uint256(self), 3);
     }
 
-    function toBytesFromUInt32(uint32 self)
-        internal
-        pure
-        returns (bytes memory _bts)
-    {
+    function toBytesFromUInt32(uint32 self) internal pure returns (bytes memory _bts) {
         return toBytesFromUIntTruncated(uint256(self), 4);
     }
 
-    function toBytesFromUInt128(uint128 self)
-        internal
-        pure
-        returns (bytes memory _bts)
-    {
+    function toBytesFromUInt128(uint128 self) internal pure returns (bytes memory _bts) {
         return toBytesFromUIntTruncated(uint256(self), 16);
     }
 
@@ -67,11 +52,7 @@ library Bytes {
 
     // Copies 'self' into a new 'bytes memory'.
     // Returns the newly created 'bytes memory'. The returned bytes will be of length '20'.
-    function toBytesFromAddress(address self)
-        internal
-        pure
-        returns (bytes memory bts)
-    {
+    function toBytesFromAddress(address self) internal pure returns (bytes memory bts) {
         bts = toBytesFromUIntTruncated(uint256(self), 20);
     }
 
@@ -92,11 +73,7 @@ library Bytes {
     // Reasoning about why this function works is similar to that of other similar functions, except NOTE below.
     // NOTE: that bytes1..32 is stored in the beginning of the word unlike other primitive types
     // NOTE: theoretically possible overflow of (_start + 20)
-    function bytesToBytes20(bytes memory self, uint256 _start)
-        internal
-        pure
-        returns (bytes20 r)
-    {
+    function bytesToBytes20(bytes memory self, uint256 _start) internal pure returns (bytes20 r) {
         require(self.length >= (_start + 20), "btb20");
         assembly {
             r := mload(add(add(self, 0x20), _start))
@@ -105,11 +82,7 @@ library Bytes {
 
     // See comment at the top of this file for explanation of how this function works.
     // NOTE: theoretically possible overflow of (_start + 0x2)
-    function bytesToUInt16(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint16 r)
-    {
+    function bytesToUInt16(bytes memory _bytes, uint256 _start) internal pure returns (uint16 r) {
         uint256 offset = _start + 0x2;
         require(_bytes.length >= offset, "btu02");
         assembly {
@@ -119,11 +92,7 @@ library Bytes {
 
     // See comment at the top of this file for explanation of how this function works.
     // NOTE: theoretically possible overflow of (_start + 0x3)
-    function bytesToUInt24(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint24 r)
-    {
+    function bytesToUInt24(bytes memory _bytes, uint256 _start) internal pure returns (uint24 r) {
         uint256 offset = _start + 0x3;
         require(_bytes.length >= offset, "btu03");
         assembly {
@@ -132,11 +101,7 @@ library Bytes {
     }
 
     // NOTE: theoretically possible overflow of (_start + 0x4)
-    function bytesToUInt32(bytes memory _bytes, uint256 _start)
-        internal
-        pure
-        returns (uint32 r)
-    {
+    function bytesToUInt32(bytes memory _bytes, uint256 _start) internal pure returns (uint32 r) {
         uint256 offset = _start + 0x4;
         require(_bytes.length >= offset, "btu04");
         assembly {
@@ -201,11 +166,11 @@ library Bytes {
     // Get slice from bytes arrays
     // Returns the newly created 'bytes memory'
     // NOTE: theoretically possible overflow of (_start + _length)
-    function slice(
-        bytes memory _bytes,
-        uint256 _start,
-        uint256 _length
-    ) internal pure returns (bytes memory) {
+    function slice(bytes memory _bytes, uint256 _start, uint256 _length)
+        internal
+        pure
+        returns (bytes memory)
+    {
         require(_bytes.length >= (_start + _length), "bse11"); // bytes length is less then start byte + length bytes
 
         bytes memory tempBytes = new bytes(_length);
@@ -234,11 +199,11 @@ library Bytes {
     /// @return new_offset - offset + amount of bytes read
     /// @return data - actually read data
     // NOTE: theoretically possible overflow of (_offset + _length)
-    function read(
-        bytes memory _data,
-        uint256 _offset,
-        uint256 _length
-    ) internal pure returns (uint256 new_offset, bytes memory data) {
+    function read(bytes memory _data, uint256 _offset, uint256 _length)
+        internal
+        pure
+        returns (uint256 new_offset, bytes memory data)
+    {
         data = slice(_data, _offset, _length);
         new_offset = _offset + _length;
     }
@@ -353,18 +318,11 @@ library Bytes {
     }
 
     // Helper function for hex conversion.
-    function halfByteToHex(bytes1 _byte)
-        internal
-        pure
-        returns (bytes1 _hexByte)
-    {
+    function halfByteToHex(bytes1 _byte) internal pure returns (bytes1 _hexByte) {
         require(uint8(_byte) < 0x10, "hbh11"); // half byte's value is out of 0..15 range.
 
         // "FEDCBA9876543210" ASCII-encoded, shifted and automatically truncated.
-        return
-            bytes1(
-                uint8(0x66656463626139383736353433323130 >> (uint8(_byte) * 8))
-            );
+        return bytes1(uint8(0x66656463626139383736353433323130 >> (uint8(_byte) * 8)));
     }
 
     // Convert bytes to ASCII hex representation
@@ -421,11 +379,7 @@ library Bytes {
     }
 
     /// Trim bytes into single word
-    function trim(bytes memory _data, uint256 _new_length)
-        internal
-        pure
-        returns (uint256 r)
-    {
+    function trim(bytes memory _data, uint256 _new_length) internal pure returns (uint256 r) {
         require(_new_length <= 0x20, "trm10"); // new_length is longer than word
         require(_data.length >= _new_length, "trm11"); // data is to short
 

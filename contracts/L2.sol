@@ -7,7 +7,8 @@ import {Utils} from "./libraries/Utils.sol";
 import {Bytes} from "./libraries/Bytes.sol";
 import "./Operations.sol";
 
-import "@nomiclabs/buidler/console.sol";
+
+// import "@nomiclabs/buidler/console.sol";
 
 contract L2 is Operations {
     uint256 constant FRAUD_PROOF_HASH = uint256(-1);
@@ -29,11 +30,7 @@ contract L2 is Operations {
     function lastestBlock()
         external
         view
-        returns (
-            uint256 blockHash,
-            uint256 rootHash,
-            uint256 blockNumber
-        )
+        returns (uint256 blockHash, uint256 rootHash, uint256 blockNumber)
     {
         blockHash = blocks[blocks.length - 1].blockHash;
         rootHash = blocks[blocks.length - 1].rootHash;
@@ -46,24 +43,13 @@ contract L2 is Operations {
         uint256 _blockHash,
         bytes calldata /* pubData */
     ) external {
-        require(
-            blocks[blocks.length - 1].blockHash == _preHash,
-            "prehash not match"
-        );
-        blocks.push(
-            BlockStore({
-                rootHash: _rootHash,
-                blockHash: _blockHash,
-                isConfirmed: false
-            })
-        );
+        require(blocks[blocks.length - 1].blockHash == _preHash, "prehash not match");
+        blocks.push(BlockStore({rootHash: _rootHash, blockHash: _blockHash, isConfirmed: false}));
     }
 
-    function simulatedBlock(
-        uint256 index,
-        bytes calldata _pubData,
-        bytes[] calldata proof
-    ) external {
+    function simulatedBlock(uint256 index, bytes calldata _pubData, bytes[] calldata proof)
+        external
+    {
         BlockStore memory prevBlockStore = blocks[index - 1];
         BlockStore memory currentBlockStore = blocks[index];
 
@@ -95,22 +81,11 @@ contract L2 is Operations {
                 if (opType == OpType.Deposit) {
                     Deposit memory deposit = readDepositData(pubData, offset);
 
-                    rootHash = simulateDeposit(
-                        deposit,
-                        rootHash,
-                        proof[proofIndex]
-                    );
+                    rootHash = simulateDeposit(deposit, rootHash, proof[proofIndex]);
                     offset += DEPOSIT_MSG_SIZE;
                 } else if (opType == OpType.Transfer) {
-                    Transfer memory transfer = readTransferData(
-                        pubData,
-                        offset
-                    );
-                    rootHash = simulateTransfer(
-                        transfer,
-                        rootHash,
-                        proof[proofIndex]
-                    );
+                    Transfer memory transfer = readTransferData(pubData, offset);
+                    rootHash = simulateTransfer(transfer, rootHash, proof[proofIndex]);
                     offset += TRANSFER_MSG_SIZE;
                 } else {
                     revert("unexpected op type"); // op type is invalid
@@ -118,28 +93,22 @@ contract L2 is Operations {
                 proofIndex++;
                 require(rootHash != FRAUD_PROOF_HASH, "op is invalid"); // slash and revert
             }
-            require(
-                rootHash == currentBlockStore.rootHash,
-                "final root hash is miss-match"
-            ); //slash and revert
+            require(rootHash == currentBlockStore.rootHash, "final root hash is miss-match"); //slash and revert
         }
 
         blocks[index].isConfirmed = true;
     }
 
-    function simulateDeposit(
-        Deposit memory deposit,
-        uint256 preRootHash,
-        bytes memory proof
-    ) internal pure returns (uint256 newRootHash) {
+    function simulateDeposit(Deposit memory deposit, uint256 preRootHash, bytes memory proof)
+        internal
+        pure
+        returns (uint256 newRootHash)
+    {
         DepositProof memory depositProof = readDepositProof(proof);
         uint256 accountHash;
         uint256 accountRootHash;
         //verify the prevRoot is match with root hash of prev block
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            deposit.tokenId,
-            depositProof.tokenProof
-        );
+        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
         accountHash = getAccountHash(accountRootHash, depositProof.nonce);
         require(
             RollUpLib.merkleAccountRoot(
@@ -151,10 +120,7 @@ contract L2 is Operations {
         );
 
         depositProof.tokenProof[0] += deposit.amount;
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            deposit.tokenId,
-            depositProof.tokenProof
-        );
+        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
 
         if (deposit.nonce != depositProof.nonce) return FRAUD_PROOF_HASH;
 
@@ -166,11 +132,11 @@ contract L2 is Operations {
         );
     }
 
-    function simulateTransfer(
-        Transfer memory transfer,
-        uint256 preRootHash,
-        bytes memory proof
-    ) internal pure returns (uint256 newRootHash) {
+    function simulateTransfer(Transfer memory transfer, uint256 preRootHash, bytes memory proof)
+        internal
+        pure
+        returns (uint256 newRootHash)
+    {
         TransferProof memory transferProof = readTransferProof(proof);
         uint256 accountHash;
         uint256 accountRootHash;
@@ -180,10 +146,7 @@ contract L2 is Operations {
             transfer.tokenId,
             transferProof.senderTokenProof
         );
-        accountHash = getAccountHash(
-            accountRootHash,
-            transferProof.senderNonce
-        );
+        accountHash = getAccountHash(accountRootHash, transferProof.senderNonce);
         require(
             RollUpLib.merkleAccountRoot(
                 accountHash,
@@ -192,21 +155,20 @@ contract L2 is Operations {
             ) == preRootHash,
             "L2::simulateTransfer pre rootHash is miss-match"
         );
-
-        if (transfer.nonce != transferProof.senderNonce)
+        //verify if this is an valid transaction
+        if (transfer.nonce != transferProof.senderNonce) {
             return FRAUD_PROOF_HASH;
-        if (transferProof.senderTokenProof[0] < transfer.amount)
+        }
+        if (transferProof.senderTokenProof[0] < transfer.amount) {
             return FRAUD_PROOF_HASH;
+        }
         transferProof.senderTokenProof[0] -= transfer.amount;
         // calculate new root hash
         accountRootHash = RollUpLib.merkleTokenRoot(
             transfer.tokenId,
             transferProof.senderTokenProof
         );
-        accountHash = getAccountHash(
-            accountRootHash,
-            transferProof.senderNonce + 1
-        );
+        accountHash = getAccountHash(accountRootHash, transferProof.senderNonce + 1);
         newRootHash = RollUpLib.merkleAccountRoot(
             accountHash,
             transfer.senderId,
@@ -217,10 +179,7 @@ contract L2 is Operations {
             transfer.tokenId,
             transferProof.receiverTokenProof
         );
-        accountHash = getAccountHash(
-            accountRootHash,
-            transferProof.receiverNonce
-        );
+        accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);
         require(
             RollUpLib.merkleAccountRoot(
                 accountHash,
@@ -235,10 +194,7 @@ contract L2 is Operations {
             transfer.tokenId,
             transferProof.receiverTokenProof
         );
-        accountHash = getAccountHash(
-            accountRootHash,
-            transferProof.receiverNonce
-        );
+        accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);
         newRootHash = RollUpLib.merkleAccountRoot(
             accountHash,
             transfer.receiverId,
