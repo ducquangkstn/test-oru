@@ -47,9 +47,12 @@ contract L2 is Operations {
         blocks.push(BlockStore({rootHash: _rootHash, blockHash: _blockHash, isConfirmed: false}));
     }
 
-    function simulatedBlock(uint256 index, bytes calldata _pubData, bytes[] calldata proof)
-        external
-    {
+    function simulatedBlock(
+        uint256 index,
+        bytes calldata _pubData,
+        bytes calldata blockChainProofData,
+        bytes[] calldata proof
+    ) external {
         BlockStore memory prevBlockStore = blocks[index - 1];
         BlockStore memory currentBlockStore = blocks[index];
 
@@ -69,9 +72,11 @@ contract L2 is Operations {
                 "blockHash is missmatch"
             );
         }
+        BlockchainProof memory bcProof = readBlockchainProof(blockChainProofData);
+        require(getBlockchainRoot(bcProof) == prevBlockStore.rootHash);
+        // read calldata
         {
-            uint256 rootHash = prevBlockStore.rootHash;
-
+            bool isValid = true;
             uint256 offset = 0;
             uint256 proofIndex = 0;
 
@@ -80,125 +85,111 @@ contract L2 is Operations {
                 offset++;
                 if (opType == OpType.Deposit) {
                     Deposit memory deposit = readDepositData(pubData, offset);
-
-                    rootHash = simulateDeposit(deposit, rootHash, proof[proofIndex]);
+                    isValid = simulateDeposit(deposit, bcProof, proof[proofIndex]);
                     offset += DEPOSIT_MSG_SIZE;
                 } else if (opType == OpType.Transfer) {
                     Transfer memory transfer = readTransferData(pubData, offset);
-                    rootHash = simulateTransfer(transfer, rootHash, proof[proofIndex]);
+                    isValid = simulateTransfer(transfer, bcProof, proof[proofIndex]);
                     offset += TRANSFER_MSG_SIZE;
                 } else {
-                    revert("unexpected op type"); // op type is invalid
+                    revert("unexpected op type"); // op type is invalid, slash and revert
                 }
                 proofIndex++;
-                require(rootHash != FRAUD_PROOF_HASH, "op is invalid"); // slash and revert
+                require(isValid, "op is invalid"); // slash and revert
             }
-            require(rootHash == currentBlockStore.rootHash, "final root hash is miss-match"); //slash and revert
         }
-
+        require(getBlockchainRoot(bcProof) == currentBlockStore.rootHash); //slash and revert
         blocks[index].isConfirmed = true;
     }
 
-    function simulateDeposit(Deposit memory deposit, uint256 preRootHash, bytes memory proof)
-        internal
-        pure
-        returns (uint256 newRootHash)
-    {
-        DepositProof memory depositProof = readDepositProof(proof);
-        uint256 accountHash;
-        uint256 accountRootHash;
-        //verify the prevRoot is match with root hash of prev block
-        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
-        accountHash = getAccountHash(accountRootHash, depositProof.nonce);
-        require(
-            RollUpLib.merkleAccountRoot(
-                accountHash,
-                deposit.senderId,
-                depositProof.accountSiblings
-            ) == preRootHash,
-            "L2::simulateDeposit: pre rootHash is miss-match"
-        );
-
-        depositProof.tokenProof[0] += deposit.amount;
-        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
-
-        if (deposit.nonce != depositProof.nonce) return FRAUD_PROOF_HASH;
-
-        accountHash = getAccountHash(accountRootHash, depositProof.nonce + 1);
-        newRootHash = RollUpLib.merkleAccountRoot(
-            accountHash,
-            deposit.senderId,
-            depositProof.accountSiblings
-        );
+    function getBlockchainRoot(BlockchainProof memory bcProof) internal pure returns (uint256) {
+        uint256[] memory accountHashes = new uint256[](bcProof.accountIDs.length);
+        for (uint256 i = 0; i < bcProof.accountIDs.length; i++) {
+            uint256 accountRoot = RollUpLib.merkleTokenRoot(
+                bcProof.accounts[i].tokenIDs,
+                bcProof.accounts[i].tokenAmounts,
+                bcProof.accounts[i].siblings,
+                12
+            );
+            accountHashes[i] = getAccountHash(accountRoot, bcProof.accounts[i].nonce);
+        }
+        return
+            RollUpLib.merkleAccountRoot(bcProof.accountIDs, accountHashes, bcProof.siblings, 32);
     }
 
-    function simulateTransfer(Transfer memory transfer, uint256 preRootHash, bytes memory proof)
-        internal
-        pure
-        returns (uint256 newRootHash)
-    {
-        TransferProof memory transferProof = readTransferProof(proof);
-        uint256 accountHash;
-        uint256 accountRootHash;
+    function simulateDeposit(
+        Deposit memory deposit,
+        BlockchainProof memory bcProof,
+        bytes memory proof
+    ) internal pure returns (bool isValid) {
+        DepositProof memory depositProof = readDepositProof(proof);
+        require(
+            deposit.senderId == bcProof.accountIDs[depositProof.accountIndex],
+            "senderId is miss-match"
+        );
 
-        //verify the prevRoot is match with root hash of prev block
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            transfer.tokenId,
-            transferProof.senderTokenProof
-        );
-        accountHash = getAccountHash(accountRootHash, transferProof.senderNonce);
-        require(
-            RollUpLib.merkleAccountRoot(
-                accountHash,
-                transfer.senderId,
-                transferProof.senderAccountSiblings
-            ) == preRootHash,
-            "L2::simulateTransfer pre rootHash is miss-match"
-        );
-        //verify if this is an valid transaction
-        if (transfer.nonce != transferProof.senderNonce) {
-            return FRAUD_PROOF_HASH;
+        if (deposit.nonce != bcProof.accounts[depositProof.accountIndex].nonce) {
+            return false;
         }
-        if (transferProof.senderTokenProof[0] < transfer.amount) {
-            return FRAUD_PROOF_HASH;
-        }
-        transferProof.senderTokenProof[0] -= transfer.amount;
-        // calculate new root hash
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            transfer.tokenId,
-            transferProof.senderTokenProof
-        );
-        accountHash = getAccountHash(accountRootHash, transferProof.senderNonce + 1);
-        newRootHash = RollUpLib.merkleAccountRoot(
-            accountHash,
-            transfer.senderId,
-            transferProof.senderAccountSiblings
-        );
-        //verify receiver proof is correct
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            transfer.tokenId,
-            transferProof.receiverTokenProof
-        );
-        accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);
+
         require(
-            RollUpLib.merkleAccountRoot(
-                accountHash,
-                transfer.receiverId,
-                transferProof.receiverAccountSiblings
-            ) == newRootHash,
-            "L2::simulateTransfer pre rootHash is miss-match"
+            deposit.tokenId ==
+                bcProof.accounts[depositProof.accountIndex].tokenIDs[depositProof.tokenIndex]
         );
-        transferProof.receiverTokenProof[0] += transfer.amount;
-        // calculate the new root hash
-        accountRootHash = RollUpLib.merkleTokenRoot(
-            transfer.tokenId,
-            transferProof.receiverTokenProof
+
+        bcProof.accounts[depositProof.accountIndex].nonce++;
+        bcProof.accounts[depositProof.accountIndex].tokenAmounts[depositProof
+            .tokenIndex] += deposit.amount;
+        return true;
+    }
+
+    function simulateTransfer(
+        Transfer memory transfer,
+        BlockchainProof memory bcProof,
+        bytes memory proof
+    ) internal pure returns (bool isValid) {
+        TransferProof memory transferProof = readTransferProof(proof);
+        require(
+            transfer.senderId == bcProof.accountIDs[transferProof.senderAccountIndex],
+            "senderAccountIndex is miss-match"
         );
-        accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);
-        newRootHash = RollUpLib.merkleAccountRoot(
-            accountHash,
-            transfer.receiverId,
-            transferProof.receiverAccountSiblings
+
+        if (transfer.nonce != bcProof.accounts[transferProof.senderAccountIndex].nonce) {
+            return false;
+        }
+
+        require(
+            transfer.tokenId ==
+                bcProof.accounts[transferProof.senderAccountIndex].tokenIDs[transferProof
+                    .senderTokenIndex],
+            "tokenSenderIndex is miss-match"
         );
+
+        if (
+            transfer.amount >
+            bcProof.accounts[transferProof.senderAccountIndex].tokenAmounts[transferProof
+                .senderTokenIndex]
+        ) {
+            return false;
+        }
+
+        require(
+            transfer.receiverId == bcProof.accountIDs[transferProof.receiverAccountIndex],
+            "receiverAccountIndex is miss-match"
+        );
+
+        require(
+            transfer.tokenId ==
+                bcProof.accounts[transferProof.receiverAccountIndex].tokenIDs[transferProof
+                    .receiverTokenIndex],
+            "receiverTokenIndex is miss-match"
+        );
+
+        bcProof.accounts[transferProof.senderAccountIndex].nonce++;
+        bcProof.accounts[transferProof.senderAccountIndex].tokenAmounts[transferProof
+            .senderTokenIndex] -= transfer.amount;
+        bcProof.accounts[transferProof.receiverAccountIndex].tokenAmounts[transferProof
+            .receiverTokenIndex] += transfer.amount;
+        return true;
     }
 }

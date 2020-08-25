@@ -25,18 +25,28 @@ contract Operations {
     }
 
     struct DepositProof {
-        uint256[13] tokenProof;
-        uint256[32] accountSiblings;
-        uint32 nonce;
+        uint16 tokenIndex;
+        uint16 accountIndex;
     }
 
     struct TransferProof {
-        uint256[13] senderTokenProof;
-        uint256[32] senderAccountSiblings;
-        uint32 senderNonce;
-        uint256[13] receiverTokenProof;
-        uint256[32] receiverAccountSiblings;
-        uint32 receiverNonce;
+        uint16 senderTokenIndex;
+        uint16 senderAccountIndex;
+        uint16 receiverTokenIndex;
+        uint16 receiverAccountIndex;
+    }
+
+    struct BlockchainProof {
+        uint32[] accountIDs;
+        uint256[] siblings;
+        AccountProof[] accounts;
+    }
+
+    struct AccountProof {
+        uint16[] tokenIDs;
+        uint256[] tokenAmounts;
+        uint256[] siblings;
+        uint32 nonce;
     }
 
     function getAccountHash(uint256 accountRootHash, uint32 nonce)
@@ -51,43 +61,81 @@ contract Operations {
         return uint256(keccak256(abi.encodePacked(accountRootHash, uint256(nonce))));
     }
 
+    function readBlockchainProof(bytes memory data)
+        internal
+        pure
+        returns (BlockchainProof memory parsed)
+    {
+        uint256 offset = 0;
+        uint256 accountSize;
+        (offset, accountSize) = Bytes.readUInt16(data, offset);
+        parsed.accountIDs = new uint32[](accountSize);
+        for (uint256 i = 0; i < accountSize; i++) {
+            (offset, parsed.accountIDs[i]) = Bytes.readUInt32(data, offset);
+        }
+        parsed.accounts = new AccountProof[](accountSize);
+        for (uint256 i = 0; i < accountSize; i++) {
+            (offset, parsed.accounts[i]) = readAccountProof(data, offset);
+        }
+
+        uint256 siblingSize;
+        (offset, siblingSize) = Bytes.readUInt16(data, offset);
+        parsed.siblings = new uint256[](siblingSize);
+        for (uint256 i = 0; i < siblingSize; i++) {
+            (offset, parsed.siblings[i]) = Bytes.readUInt256(data, offset);
+        }
+        require(offset == data.length, "not eof");
+    }
+
+    function readAccountProof(bytes memory data, uint256 offset)
+        internal
+        pure
+        returns (uint256 new_offset, AccountProof memory parsed)
+    {
+        uint256 tokenSize;
+        (offset, tokenSize) = Bytes.readUInt16(data, offset);
+        parsed.tokenIDs = new uint16[](tokenSize);
+        for (uint256 i = 0; i < tokenSize; i++) {
+            (offset, parsed.tokenIDs[i]) = Bytes.readUInt16(data, offset);
+        }
+
+        parsed.tokenAmounts = new uint256[](tokenSize);
+        for (uint256 i = 0; i < tokenSize; i++) {
+            (offset, parsed.tokenAmounts[i]) = Bytes.readUInt256(data, offset);
+        }
+
+        uint256 siblingSize;
+        (offset, siblingSize) = Bytes.readUInt16(data, offset);
+        parsed.siblings = new uint256[](siblingSize);
+        for (uint256 i = 0; i < siblingSize; i++) {
+            (offset, parsed.siblings[i]) = Bytes.readUInt256(data, offset);
+        }
+
+        (offset, parsed.nonce) = Bytes.readUInt32(data, offset);
+        new_offset = offset;
+    }
+
     function readDepositProof(bytes memory data)
         internal
         pure
-        returns (DepositProof memory depositProof)
+        returns (DepositProof memory parsed)
     {
         uint256 offset = 0;
-        for (uint256 i = 0; i < 32; i++) {
-            (offset, depositProof.accountSiblings[i]) = Bytes.readUInt256(data, offset);
-        }
-
-        for (uint256 i = 0; i < 13; i++) {
-            (offset, depositProof.tokenProof[i]) = Bytes.readUInt256(data, offset);
-        }
-        (offset, depositProof.nonce) = Bytes.readUInt32(data, offset);
+        (offset, parsed.tokenIndex) = Bytes.readUInt16(data, offset);
+        (offset, parsed.accountIndex) = Bytes.readUInt16(data, offset);
         require(offset == data.length, "not eof");
     }
 
     function readTransferProof(bytes memory data)
         internal
         pure
-        returns (TransferProof memory transferProof)
+        returns (TransferProof memory parsed)
     {
         uint256 offset = 0;
-        for (uint256 i = 0; i < 32; i++) {
-            (offset, transferProof.senderAccountSiblings[i]) = Bytes.readUInt256(data, offset);
-        }
-        for (uint256 i = 0; i < 13; i++) {
-            (offset, transferProof.senderTokenProof[i]) = Bytes.readUInt256(data, offset);
-        }
-        (offset, transferProof.senderNonce) = Bytes.readUInt32(data, offset);
-        for (uint256 i = 0; i < 32; i++) {
-            (offset, transferProof.receiverAccountSiblings[i]) = Bytes.readUInt256(data, offset);
-        }
-        for (uint256 i = 0; i < 13; i++) {
-            (offset, transferProof.receiverTokenProof[i]) = Bytes.readUInt256(data, offset);
-        }
-        (offset, transferProof.receiverNonce) = Bytes.readUInt32(data, offset);
+        (offset, parsed.senderTokenIndex) = Bytes.readUInt16(data, offset);
+        (offset, parsed.senderAccountIndex) = Bytes.readUInt16(data, offset);
+        (offset, parsed.receiverTokenIndex) = Bytes.readUInt16(data, offset);
+        (offset, parsed.receiverAccountIndex) = Bytes.readUInt16(data, offset);
         require(offset == data.length, "not eof");
     }
 

@@ -243,8 +243,12 @@ export class Deposit implements Transaction {
 
 }
 
-class Withdraw {
+export class BlockchainProof {
 
+}
+
+export class AccountProof {
+    
 }
 
 class Account {
