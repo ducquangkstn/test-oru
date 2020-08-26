@@ -1,14 +1,16 @@
 const Web3 = require("web3");
 const web3 = new Web3();
-import BN = require('bn.js');
+import BN = require("bn.js");
 
-import { hexToBN } from './helpers';
+import {hexToBN} from "./helpers";
 
 export function keccakParentOf(left: BN, right: BN): BN {
   if (left.eq(new BN(0)) && right.eq(new BN(0))) return new BN(0);
-  return hexToBN(web3.utils.soliditySha3(
-    web3.eth.abi.encodeParameters(['uint256', 'uint256'], [left, right])
-  ));
+  return hexToBN(
+    web3.utils.soliditySha3(
+      web3.eth.abi.encodeParameters(["uint256", "uint256"], [left, right])
+    )
+  );
 }
 
 export class MerkleTree {
@@ -21,11 +23,47 @@ export class MerkleTree {
   }
 
   /// get key return a tuple of value and sibling to proof
-  getProof(key: BN) {
+  getProof(key: BN): [BN, BN[]] {
     return this.root.getProof(key);
   }
 
-  get(key: BN){
+  // assume that keys in increasing order
+  getProofBatch(keys: BN[]): [BN[], BN[]] {
+    let allsiblings: BN[][] = [];
+    let keys2: BN[] = [...keys];
+    let values: BN[] = [];
+    let outSiblings: BN[] = [];
+    for (let i = 0; i < keys.length; i++) {
+      let childProof = this.getProof(keys[i]);
+      values.push(childProof[0]);
+      allsiblings.push(childProof[1]);
+    }
+
+    for (let deep = 0; deep < this.deep - 1; deep++) {
+      let tmpAllSibings: BN[][] = [];
+      let tmpKeys2: BN[] = [];
+      for (let i = 0; i < keys2.length; ) {
+        if (
+          i != keys2.length - 1 &&
+          keys2[i].div(new BN(2)).eq(keys2[i + 1].div(new BN(2)))
+        ) {
+          tmpKeys2.push(keys2[i].div(new BN(2)));
+          tmpAllSibings.push(allsiblings[i].slice(1));
+          i += 2; //  skip 1 more element
+          continue;
+        }
+        tmpKeys2.push(keys2[i].div(new BN(2)));
+        tmpAllSibings.push(allsiblings[i].slice(1));
+        outSiblings.push(allsiblings[i][0]);
+        i++;
+      }
+      keys2 = tmpKeys2;
+      allsiblings = tmpAllSibings;
+    }
+    return [values, outSiblings];
+  }
+
+  get(key: BN) {
     return this.root.get(key);
   }
 
@@ -34,7 +72,7 @@ export class MerkleTree {
   }
 
   rootHash(): BN {
-    return this.root.root
+    return this.root.root;
   }
 }
 
@@ -51,7 +89,6 @@ class Node {
     this.root = root;
     this.deep = deep;
     this.treeDeep = treeDeep;
-
   }
   leftHash(): BN {
     if (this.left == undefined) {
@@ -96,7 +133,7 @@ class Node {
           }
         }
         value = new BN(0);
-      } else[value, siblings] = this.left.getProof(key);
+      } else [value, siblings] = this.left.getProof(key);
       siblings.push(this.rightHash());
     } else {
       if (this.right == undefined) {
@@ -109,12 +146,10 @@ class Node {
           }
         }
         value = new BN(0);
-      } else[value, siblings] = this.right.getProof(key);
+      } else [value, siblings] = this.right.getProof(key);
 
       siblings.push(this.leftHash());
     }
-
-    // console.log('siblings', siblings.length, siblings[siblings.length - 1])
     return [value, siblings];
   }
 
@@ -153,7 +188,6 @@ class Node {
 export function merkleRoot(key: BN, value: BN, siblings: BN[]): BN {
   let root = value;
   for (let i = 0; i < siblings.length; i++) {
-    // console.log(key);
     // key & 1 ==0
     if (key.uand(new BN(1)).eq(new BN(0))) {
       // right sibling
