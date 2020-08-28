@@ -27,7 +27,7 @@ contract('L2', (accounts) => {
       let bc = new blockchain.Blockchain();
       // add block to blockchain
       let block = new blockchain.Block(new BN(0));
-      for(let i =0; i< 20;i++){
+      for(let i =0; i< 10;i++){
         block.addTransaction(new blockchain.Deposit(rand(2**30 -1), rand(2**10 -1), new BN(2**32 -1), 0));
       }
 
@@ -63,6 +63,7 @@ async function submitAndSimulateBlock(l2, bc, block) {
     '0x' + bcProof.toBuffer().toString('hex'),
     txProofs
   );
+  console.log(result.receipt);
   console.log('gas used', result.receipt.gasUsed);
 }
 

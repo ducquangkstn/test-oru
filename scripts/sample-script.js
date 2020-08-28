@@ -1,18 +1,45 @@
-// We require the Buidler Runtime Environment explicitly here. This is optional
-// when running the script with `buidler run <script>`: you'll find the Buidler
-// Runtime Environment's members available as global variable in that case.
-const env = require("@nomiclabs/buidler");
+const BN = web3.utils.BN;
 
-async function main() {
-  // You can run Buidler tasks from a script.
-  // For example, we make sure everything is compiled by running "compile"
-  await env.run("compile");
+const L2 = artifacts.require('L2');
 
-  // We require the artifacts once our contracts are compiled
-  const Greeter = env.artifacts.require("Greeter");
-  const greeter = await Greeter.new("Hello, world!");
+const blockchain = require('../test/blockchain');
 
-  console.log("Greeter address:", greeter.address);
+async function main () {
+  let accounts = await web3.eth.getAccounts();
+
+  console.log(accounts[0]);
+
+  let bc = new blockchain.Blockchain();
+  // add block to blockchain
+  let block = new blockchain.Block(new BN(0));
+  for (let i = 0; i < 10; i++) {
+    block.addTransaction(new blockchain.Deposit(rand(2 ** 30 - 1), rand(2 ** 10 - 1), new BN(2 ** 32 - 1), 0));
+  }
+
+  let l2 = await L2.new();
+  await submitAndSimulateBlock(l2, bc, block);
+}
+
+async function submitAndSimulateBlock (l2, bc, block) {
+  let {blockHash, blockNumber} = await l2.lastestBlock();
+
+  let [bcProof, txProofs] = bc.addBlock(block);
+
+  let newBlockHash = block.hash();
+  let blockPubData = '0x' + block.toBuffer().toString('hex');
+
+  await l2.submitBlock(blockHash, bc.tree.rootHash(), newBlockHash, blockPubData);
+  let result = await l2.simulatedBlock(
+    blockNumber.add(new BN(1)),
+    blockPubData,
+    '0x' + bcProof.toBuffer().toString('hex'),
+    txProofs
+  );
+  console.log('gas used', result.receipt.gasUsed);
+}
+
+function rand (value) {
+  return Math.floor(Math.random() * value);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
