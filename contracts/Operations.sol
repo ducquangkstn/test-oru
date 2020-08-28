@@ -4,16 +4,16 @@ import {Bytes} from "./libraries/Bytes.sol";
 
 
 contract Operations {
-    // 4 bytes senderId, 4 bytes nonce, 2 bytes tokenId, 32 bytes amount
-    uint256 constant DEPOSIT_MSG_SIZE = 42;
-    // 4 bytes senderId, 4 bytes receiverId, 4 bytes nonce, 2 bytes tokenId, 32 bytes amount
-    uint256 constant TRANSFER_MSG_SIZE = 46;
+    // 4 bytes senderId, 4 bytes nonce, 2 bytes tokenId, 6 bytes amount
+    uint256 constant DEPOSIT_MSG_SIZE = 16;
+    // 4 bytes senderId, 4 bytes receiverId, 4 bytes nonce, 2 bytes tokenId, 6 bytes amount
+    uint256 constant TRANSFER_MSG_SIZE = 20;
 
     struct Deposit {
         uint32 senderId;
         uint32 nonce;
         uint16 tokenId;
-        uint256 amount;
+        uint48 amount;
     }
 
     struct Transfer {
@@ -21,20 +21,23 @@ contract Operations {
         uint32 receiverId;
         uint32 nonce;
         uint16 tokenId;
-        uint256 amount;
+        uint48 amount;
     }
 
     struct DepositProof {
-        uint256[13] tokenProof;
+        uint48 tokenAmount;
+        uint256[12] tokenProof;
         uint256[32] accountSiblings;
         uint32 nonce;
     }
 
     struct TransferProof {
-        uint256[13] senderTokenProof;
+        uint48 senderTokenAmount;
+        uint256[12] senderTokenProof;
         uint256[32] senderAccountSiblings;
         uint32 senderNonce;
-        uint256[13] receiverTokenProof;
+        uint48 receiverTokenAmount;
+        uint256[12] receiverTokenProof;
         uint256[32] receiverAccountSiblings;
         uint32 receiverNonce;
     }
@@ -61,7 +64,8 @@ contract Operations {
             (offset, depositProof.accountSiblings[i]) = Bytes.readUInt256(data, offset);
         }
 
-        for (uint256 i = 0; i < 13; i++) {
+        (offset, depositProof.tokenAmount) = Bytes.readUInt48(data, offset);
+        for (uint256 i = 0; i < 12; i++) {
             (offset, depositProof.tokenProof[i]) = Bytes.readUInt256(data, offset);
         }
         (offset, depositProof.nonce) = Bytes.readUInt32(data, offset);
@@ -77,14 +81,18 @@ contract Operations {
         for (uint256 i = 0; i < 32; i++) {
             (offset, transferProof.senderAccountSiblings[i]) = Bytes.readUInt256(data, offset);
         }
-        for (uint256 i = 0; i < 13; i++) {
+
+        (offset, transferProof.senderTokenAmount) = Bytes.readUInt48(data, offset);
+        for (uint256 i = 0; i < 12; i++) {
             (offset, transferProof.senderTokenProof[i]) = Bytes.readUInt256(data, offset);
         }
         (offset, transferProof.senderNonce) = Bytes.readUInt32(data, offset);
         for (uint256 i = 0; i < 32; i++) {
             (offset, transferProof.receiverAccountSiblings[i]) = Bytes.readUInt256(data, offset);
         }
-        for (uint256 i = 0; i < 13; i++) {
+
+        (offset, transferProof.receiverTokenAmount) = Bytes.readUInt48(data, offset);
+        for (uint256 i = 0; i < 12; i++) {
             (offset, transferProof.receiverTokenProof[i]) = Bytes.readUInt256(data, offset);
         }
         (offset, transferProof.receiverNonce) = Bytes.readUInt32(data, offset);
@@ -99,7 +107,7 @@ contract Operations {
         (offset, parsed.senderId) = Bytes.readUInt32(data, offset);
         (offset, parsed.nonce) = Bytes.readUInt32(data, offset);
         (offset, parsed.tokenId) = Bytes.readUInt16(data, offset);
-        (offset, parsed.amount) = Bytes.readUInt256(data, offset);
+        (offset, parsed.amount) = Bytes.readUInt48(data, offset);
     }
 
     function readTransferData(bytes memory data, uint256 offset)
@@ -111,6 +119,6 @@ contract Operations {
         (offset, parsed.receiverId) = Bytes.readUInt32(data, offset);
         (offset, parsed.nonce) = Bytes.readUInt32(data, offset);
         (offset, parsed.tokenId) = Bytes.readUInt16(data, offset);
-        (offset, parsed.amount) = Bytes.readUInt256(data, offset);
+        (offset, parsed.amount) = Bytes.readUInt48(data, offset);
     }
 }

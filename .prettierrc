@@ -22,6 +22,18 @@
         "explicitTypes": "always",
         "semi": true
       }
+    },
+    {
+      "files": "*.ts",
+      "options": {
+        "printWidth": 119,
+        "tabWidth": 2,
+        "useTabs": false,
+        "singleQuote": true,
+        "bracketSpacing": false,
+        "explicitTypes": "always",
+        "semi": true
+      }
     }
   ]
 }

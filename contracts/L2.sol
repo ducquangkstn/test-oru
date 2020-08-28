@@ -95,7 +95,6 @@ contract L2 is Operations {
             }
             require(rootHash == currentBlockStore.rootHash, "final root hash is miss-match"); //slash and revert
         }
-
         blocks[index].isConfirmed = true;
     }
 
@@ -108,7 +107,7 @@ contract L2 is Operations {
         uint256 accountHash;
         uint256 accountRootHash;
         //verify the prevRoot is match with root hash of prev block
-        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
+        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenAmount, depositProof.tokenProof);
         accountHash = getAccountHash(accountRootHash, depositProof.nonce);
         require(
             RollUpLib.merkleAccountRoot(
@@ -119,8 +118,8 @@ contract L2 is Operations {
             "L2::simulateDeposit: pre rootHash is miss-match"
         );
 
-        depositProof.tokenProof[0] += deposit.amount;
-        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenProof);
+        depositProof.tokenAmount += deposit.amount;
+        accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenAmount, depositProof.tokenProof);
 
         if (deposit.nonce != depositProof.nonce) return FRAUD_PROOF_HASH;
 
@@ -144,6 +143,7 @@ contract L2 is Operations {
         //verify the prevRoot is match with root hash of prev block
         accountRootHash = RollUpLib.merkleTokenRoot(
             transfer.tokenId,
+            transferProof.senderTokenAmount,
             transferProof.senderTokenProof
         );
         accountHash = getAccountHash(accountRootHash, transferProof.senderNonce);
@@ -159,13 +159,14 @@ contract L2 is Operations {
         if (transfer.nonce != transferProof.senderNonce) {
             return FRAUD_PROOF_HASH;
         }
-        if (transferProof.senderTokenProof[0] < transfer.amount) {
+        if (transferProof.senderTokenAmount < transfer.amount) {
             return FRAUD_PROOF_HASH;
         }
-        transferProof.senderTokenProof[0] -= transfer.amount;
+        transferProof.senderTokenAmount -= transfer.amount;
         // calculate new root hash
         accountRootHash = RollUpLib.merkleTokenRoot(
             transfer.tokenId,
+            transferProof.senderTokenAmount,
             transferProof.senderTokenProof
         );
         accountHash = getAccountHash(accountRootHash, transferProof.senderNonce + 1);
@@ -177,6 +178,7 @@ contract L2 is Operations {
         //verify receiver proof is correct
         accountRootHash = RollUpLib.merkleTokenRoot(
             transfer.tokenId,
+            transferProof.receiverTokenAmount,
             transferProof.receiverTokenProof
         );
         accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);
@@ -188,10 +190,11 @@ contract L2 is Operations {
             ) == newRootHash,
             "L2::simulateTransfer pre rootHash is miss-match"
         );
-        transferProof.receiverTokenProof[0] += transfer.amount;
+        transferProof.receiverTokenAmount += transfer.amount;
         // calculate the new root hash
         accountRootHash = RollUpLib.merkleTokenRoot(
             transfer.tokenId,
+            transferProof.receiverTokenAmount,
             transferProof.receiverTokenProof
         );
         accountHash = getAccountHash(accountRootHash, transferProof.receiverNonce);

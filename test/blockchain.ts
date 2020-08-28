@@ -69,7 +69,7 @@ export class Blockchain {
         this.tree.update(new BN(deposit.senderId), newHash);
         return Buffer.concat([
             Helpers.serializeBNArray(accountSiblings),
-            Helpers.serializeBN(beforeBalance),
+            Helpers.serializeAmount(beforeBalance),
             Helpers.serializeBNArray(tokenSiblings),
             Helpers.serializeNonce(deposit.nonce)
         ]);
@@ -107,11 +107,11 @@ export class Blockchain {
 
         return Buffer.concat([
             Helpers.serializeBNArray(accountSiblings),
-            Helpers.serializeBN(beforeBalance),
+            Helpers.serializeAmount(beforeBalance),
             Helpers.serializeBNArray(tokenSiblings),
             Helpers.serializeNonce(transfer.nonce),
             Helpers.serializeBNArray(receiverAccountSiblings),
-            Helpers.serializeBN(receiverBeforeBalance),
+            Helpers.serializeAmount(receiverBeforeBalance),
             Helpers.serializeBNArray(receiverTokenSiblings),
             Helpers.serializeNonce(receiverNonce),
         ]);
@@ -195,7 +195,7 @@ export class Transfer implements Transaction {
             Helpers.serializeAccountId(this.receiverId),
             Helpers.serializeNonce(this.nonce),
             Helpers.serializeTokenId(this.tokenId),
-            Helpers.serializeBN(this.amount)
+            Helpers.serializeAmount(this.amount)
         ])
     }
 
@@ -232,7 +232,7 @@ export class Deposit implements Transaction {
             Helpers.serializeAccountId(this.senderId),
             Helpers.serializeNonce(this.nonce),
             Helpers.serializeTokenId(this.tokenId),
-            Helpers.serializeBN(this.amount)
+            Helpers.serializeAmount(this.amount)
         ])
     }
 
