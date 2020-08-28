@@ -114,7 +114,7 @@ export class Blockchain {
     return [bcProof, txProofs];
   }
 
-  handleDeposit (deposit: Deposit): Buffer {
+  handleDeposit (deposit: Deposit) {
     let account;
     if (this.accounts[deposit.senderId]) {
       account = this.accounts[deposit.senderId];
@@ -123,21 +123,14 @@ export class Blockchain {
       this.accounts[deposit.senderId] = account;
     }
 
-    if (account.nonce != deposit.nonce) throw Error('account nonce is miss-match');
-
-    let [beforeBalance, tokenSiblings] = account.accountTree.getProof(new BN(deposit.tokenId));
-    let [_, accountSiblings] = this.tree.getProof(new BN(deposit.senderId));
-
+    if (account.nonce != deposit.nonce) {
+      throw Error('account nonce is miss-match');
+    }
+    let [beforeBalance] = account.accountTree.getProof(new BN(deposit.tokenId));
     account.nonce++;
     account.update(deposit.tokenId, beforeBalance.add(deposit.amount));
     let newHash = account.updateHash();
     this.tree.update(new BN(deposit.senderId), newHash);
-    return Buffer.concat([
-      Helpers.serializeBNArray(accountSiblings),
-      Helpers.serializeBN(beforeBalance),
-      Helpers.serializeBNArray(tokenSiblings),
-      Helpers.serializeNonce(deposit.nonce)
-    ]);
   }
 
   handleTransfer (transfer: Transfer) {
@@ -227,7 +220,7 @@ export class Transfer implements Transaction {
       Helpers.serializeAccountID(this.receiverId),
       Helpers.serializeNonce(this.nonce),
       Helpers.serializeTokenID(this.tokenId),
-      Helpers.serializeBN(this.amount)
+      Helpers.serializeAmount(this.amount)
     ]);
   }
 
@@ -245,7 +238,7 @@ export class Deposit implements Transaction {
       Helpers.serializeAccountID(this.senderId),
       Helpers.serializeNonce(this.nonce),
       Helpers.serializeTokenID(this.tokenId),
-      Helpers.serializeBN(this.amount)
+      Helpers.serializeAmount(this.amount)
     ]);
   }
 
@@ -279,7 +272,7 @@ export class AccountProof {
     return Buffer.concat([
       Helpers.serializeArrayLength(this.tokenIDs.length),
       Helpers.serializeTokenIDs(this.tokenIDs),
-      Helpers.serializeBNArray(this.tokenAmounts),
+      Helpers.serializeAmountArray(this.tokenAmounts),
       Helpers.serializeArrayLength(this.siblings.length),
       Helpers.serializeBNArray(this.siblings),
       Helpers.serializeNonce(this.nonce)

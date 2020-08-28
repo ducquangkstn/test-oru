@@ -4,3 +4,5 @@ artifacts
 
 # node js files
 node_modules
+
+.env

@@ -63,6 +63,18 @@ export function serializeAccountIDs (accountIDs: number[]): Buffer {
   return Buffer.concat(buffers);
 }
 
+export function serializeAmount (amount: BN): Buffer {
+  return amount.toArrayLike(Buffer, 'be', 6);
+}
+
+export function serializeAmountArray (amounts: BN[]): Buffer {
+  let buffers: Buffer[] = [];
+  amounts.forEach(amount => {
+    buffers.push(serializeAmount(amount));
+  });
+  return Buffer.concat(buffers);
+}
+
 export function serializeBN (amount: BN): Buffer {
   return amount.toArrayLike(Buffer, 'be', 32);
 }

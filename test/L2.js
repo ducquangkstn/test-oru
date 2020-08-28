@@ -23,6 +23,18 @@ contract('L2', (accounts) => {
       await submitAndSimulateBlock(l2, bc, block2);
     });
 
+    it.only('bench mark deposit', async() => {
+      let bc = new blockchain.Blockchain();
+      // add block to blockchain
+      let block = new blockchain.Block(new BN(0));
+      for(let i =0; i< 20;i++){
+        block.addTransaction(new blockchain.Deposit(rand(2**30 -1), rand(2**10 -1), new BN(2**32 -1), 0));
+      }
+
+      let l2 = await L2.new();
+      await submitAndSimulateBlock(l2, bc, block);
+    });
+
     it('test transfer', async () => {
       let bc = new blockchain.Blockchain();
       // add block to blockchain
@@ -45,10 +57,15 @@ async function submitAndSimulateBlock(l2, bc, block) {
   let blockPubData = '0x' + block.toBuffer().toString('hex');
 
   await l2.submitBlock(blockHash, bc.tree.rootHash(), newBlockHash, blockPubData);
-  await l2.simulatedBlock(
+  let result = await l2.simulatedBlock(
     blockNumber.add(new BN(1)),
     blockPubData,
     '0x' + bcProof.toBuffer().toString('hex'),
     txProofs
   );
+  console.log('gas used', result.receipt.gasUsed);
+}
+
+function rand (value) {
+  return Math.floor(Math.random() * value);
 }

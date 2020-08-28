@@ -119,11 +119,17 @@ library RollUpLib {
 
     function merkleTokenRoot(
         uint16[] memory tokenIDs,
-        uint256[] memory tokenHashes,
+        uint48[] memory tokenAmounts,
         uint256[] memory siblings,
         uint256 maxDepth
     ) internal pure returns (uint256) {
         uint256 siblingIndex = 0;
+
+        uint256[] memory accountHashes = new uint256[](tokenAmounts.length);
+        for(uint256 i=0;i< tokenAmounts.length;i ++){
+            accountHashes[i] = uint256(tokenAmounts[i]);
+        }
+
         for (uint256 depth = 0; depth < maxDepth; depth++) {
             uint256 count = 0;
             uint256 i = 0;
@@ -152,7 +158,7 @@ library RollUpLib {
             while (i < tokenIDs.length) {
                 if (i != tokenIDs.length - 1 && tokenIDs[i] / 2 == tokenIDs[i + 1] / 2) {
                     tmpAccountIDs[accountIndex] = tokenIDs[i] / 2;
-                    tmpAccountHashs[accountIndex] = merkleRoot(tokenHashes[i], tokenHashes[i + 1]);
+                    tmpAccountHashs[accountIndex] = merkleRoot(accountHashes[i], accountHashes[i + 1]);
                     i += 2;
                     accountIndex++;
                     continue;
@@ -160,7 +166,7 @@ library RollUpLib {
                 tmpAccountIDs[accountIndex] = tokenIDs[i] / 2;
                 bool isLeft = (tokenIDs[i] & 1) == 0;
                 tmpAccountHashs[accountIndex] = merkleRoot(
-                    tokenHashes[i],
+                    accountHashes[i],
                     siblings[siblingIndex],
                     isLeft
                 );
@@ -169,9 +175,9 @@ library RollUpLib {
                 i++;
             }
             tokenIDs = tmpAccountIDs;
-            tokenHashes = tmpAccountHashs;
+            accountHashes = tmpAccountHashs;
         }
-        return tokenHashes[0];
+        return accountHashes[0];
     }
 
     function merkleRoot(uint256 current, uint256 sibling, bool isLeft)

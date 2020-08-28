@@ -109,6 +109,14 @@ library Bytes {
         }
     }
 
+    function bytesToUint48(bytes memory _bytes, uint256 _start) internal pure returns (uint48 r) {
+        uint256 offset = _start + 0x6;
+        require(_bytes.length >= offset, "btu06");
+        assembly {
+            r := mload(add(_bytes, offset))
+        }
+    }
+
     // NOTE: theoretically possible overflow of (_start + 0x10)
     function bytesToUInt128(bytes memory _bytes, uint256 _start)
         internal
@@ -256,6 +264,16 @@ library Bytes {
     {
         new_offset = _offset + 4;
         r = bytesToUInt32(_data, _offset);
+    }
+
+    // NOTE: theoretically possible overflow of (_offset + 16)
+    function readUInt48(bytes memory _data, uint256 _offset)
+        internal
+        pure
+        returns (uint256 new_offset, uint48 r)
+    {
+        new_offset = _offset + 6;
+        r = bytesToUint48(_data, _offset);
     }
 
     // NOTE: theoretically possible overflow of (_offset + 16)
