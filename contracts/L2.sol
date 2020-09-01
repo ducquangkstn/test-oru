@@ -8,7 +8,7 @@ import {Bytes} from "./libraries/Bytes.sol";
 import "./Operations.sol";
 
 
-// import "@nomiclabs/buidler/console.sol";
+import "@nomiclabs/buidler/console.sol";
 contract L2 is Operations {
     uint256 constant FRAUD_PROOF_HASH = uint256(-1);
 

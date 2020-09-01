@@ -2,9 +2,6 @@ pragma solidity 0.6.6;
 
 import {Bytes} from "./libraries/Bytes.sol";
 
-import "@nomiclabs/buidler/console.sol";
-
-
 contract Operations {
     // 4 bytes senderId, 4 bytes nonce, 2 bytes tokenId, 6 bytes amount
     uint256 constant DEPOSIT_MSG_SIZE = 16;

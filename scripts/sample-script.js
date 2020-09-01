@@ -16,7 +16,8 @@ async function main () {
     block.addTransaction(new blockchain.Deposit(rand(2 ** 30 - 1), rand(2 ** 10 - 1), new BN(2 ** 32 - 1), 0));
   }
 
-  let l2 = await L2.new();
+  // let l2 = await L2.new();
+  let l2 = await L2.at('0x5d6fbfd41c9381d1e3f194cf99e86ac463de66c3');
   await submitAndSimulateBlock(l2, bc, block);
 }
 
@@ -35,6 +36,7 @@ async function submitAndSimulateBlock (l2, bc, block) {
     '0x' + bcProof.toBuffer().toString('hex'),
     txProofs
   );
+  console.log(result.receipt);
   console.log('gas used', result.receipt.gasUsed);
 }
 

@@ -124,7 +124,7 @@ export class Blockchain {
     }
 
     if (account.nonce != deposit.nonce) {
-      throw Error('account nonce is miss-match');
+      throw Error(`account nonce is miss-match account.nonce=${account.nonce} deposit.nonce=${deposit.nonce}`);
     }
     let [beforeBalance] = account.accountTree.getProof(new BN(deposit.tokenId));
     account.nonce++;
