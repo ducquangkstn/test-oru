@@ -71,6 +71,8 @@ contract L2 is Operations {
                 "blockHash is missmatch"
             );
         }
+
+        // BlockchainProof memory bcProof = readBlockchainProofFromCalldata(2);
         BlockchainProof memory bcProof = readBlockchainProof(blockChainProofData);
         require(getBlockchainRoot(bcProof) == prevBlockStore.rootHash);
         // read calldata
@@ -102,9 +104,9 @@ contract L2 is Operations {
     }
 
     function getBlockchainRoot(BlockchainProof memory bcProof) internal pure returns (uint256) {
-        uint256[] memory accountHashes = new uint256[](bcProof.accountIDs.length);
+        bytes32[] memory accountHashes = new bytes32[](bcProof.accountIDs.length);
         for (uint256 i = 0; i < bcProof.accountIDs.length; i++) {
-            uint256 accountRoot = RollUpLib.merkleTokenRoot(
+            bytes32 accountRoot = RollUpLib.merkleTokenRoot(
                 bcProof.accounts[i].tokenIDs,
                 bcProof.accounts[i].tokenAmounts,
                 bcProof.accounts[i].siblings,
@@ -113,7 +115,7 @@ contract L2 is Operations {
             accountHashes[i] = getAccountHash(accountRoot, bcProof.accounts[i].nonce);
         }
         return
-            RollUpLib.merkleAccountRoot(bcProof.accountIDs, accountHashes, bcProof.siblings, 32);
+            uint256(RollUpLib.merkleAccountRoot(bcProof.accountIDs, accountHashes, bcProof.siblings, 32));
     }
 
     function simulateDeposit(

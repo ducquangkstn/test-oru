@@ -27,17 +27,12 @@ module.exports = {
       // See the solidity docs for advice about optimization and evmVersion
       optimizer: {
         enabled: true,
-        runs: 200
+        runs: 200000
       },
       evmVersion: 'istanbul'
     }
   },
   networks: {
-    develop: {
-      url: "http://127.0.0.1:8545",
-      gas: 6000000,
-      timeout: 20000
-    },
     ropsten: {
       url: `https://ropsten.infura.io/v3/${INFURA_API_KEY}`,
       accounts: [PRIVATE_KEY],

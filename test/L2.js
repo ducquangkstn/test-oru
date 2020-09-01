@@ -63,7 +63,7 @@ async function submitAndSimulateBlock(l2, bc, block) {
     '0x' + bcProof.toBuffer().toString('hex'),
     txProofs
   );
-  console.log(result.receipt);
+  // console.log(result.receipt);
   console.log('gas used', result.receipt.gasUsed);
 }
 
