@@ -33,10 +33,10 @@ module.exports = {
     }
   },
   networks: {
-    ropsten: {
-      url: `https://ropsten.infura.io/v3/${INFURA_API_KEY}`,
+    kovan: {
+      url: `https://kovan.infura.io/v3/${INFURA_API_KEY}`,
       accounts: [PRIVATE_KEY],
-      gasPrice: 90000000000
+      gasPrice: 1000000000
     }
   }
 };

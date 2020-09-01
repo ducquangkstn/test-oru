@@ -1,7 +1,6 @@
 pragma solidity 0.6.6;
 
 import {RollUpLib} from "../libraries/Tree.sol";
-import "@nomiclabs/buidler/console.sol";
 
 
 contract MockTree {
