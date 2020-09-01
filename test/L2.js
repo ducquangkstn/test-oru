@@ -3,9 +3,8 @@ const L2 = artifacts.require('L2');
 const {expectEvent, expectRevert} = require('@openzeppelin/test-helpers');
 const BN = web3.utils.BN;
 
-const {MerkleTree} = require('./treeHelpers');
 const blockchain = require('./blockchain');
-const Helpers = require('./helpers');
+const benchmark = require('./benchmark/random');
 
 contract('L2', accounts => {
   describe('test', async () => {
@@ -23,16 +22,54 @@ contract('L2', accounts => {
       await submitAndSimulateBlock(l2, bc, block2);
     });
 
-    it.only('bench mark deposit', async () => {
+    it.only('benchmark deposit', async () => {
+      let l2 = await L2.new();
+
       let bc = new blockchain.Blockchain();
       // add block to blockchain
       let block = new blockchain.Block(new BN(0));
-      for (let i = 0; i < 10; i++) {
-        block.addTransaction(new blockchain.Deposit(rand(2 ** 30 - 1), rand(2 ** 10 - 1), new BN(2 ** 32 - 1), 0));
+      let data = benchmark.readInfo();
+      for (let i = 0; i < data.userIDs.length; i++) {
+        block.addTransaction(new blockchain.Deposit(data.userIDs[i], data.tokenIDs[i], new BN(data.balances[i]), 0));
       }
+      await addBlock(l2, bc, block);
 
+      let depositBlock = new blockchain.Block(bc.head());
+      let depositData = benchmark.readInfoDeposit();
+      for (let i = 0; i < 20; i++) {
+        depositBlock.addTransaction(
+          new blockchain.Deposit(depositData.senderIDs[i], depositData.tokenIDs[i], new BN(depositData.amounts[i]), 1)
+        );
+      }
+      await submitAndSimulateBlock(l2, bc, depositBlock);
+    });
+
+    it.only('benchmark transfer', async () => {
       let l2 = await L2.new();
-      await submitAndSimulateBlock(l2, bc, block);
+
+      let bc = new blockchain.Blockchain();
+      // add block to blockchain
+      let block = new blockchain.Block(new BN(0));
+      let data = benchmark.readInfo();
+      for (let i = 0; i < data.userIDs.length; i++) {
+        block.addTransaction(new blockchain.Deposit(data.userIDs[i], data.tokenIDs[i], new BN(data.balances[i]), 0));
+      }
+      await addBlock(l2, bc, block);
+
+      let depositBlock = new blockchain.Block(bc.head());
+      let depositData = benchmark.readInfoTransfer();
+      for (let i = 0; i < 10; i++) {
+        depositBlock.addTransaction(
+          new blockchain.Transfer(
+            depositData.senderIDs[i],
+            depositData.receiverIDs[i],
+            depositData.tokenIDs[i],
+            new BN(depositData.amounts[i]),
+            1
+          )
+        );
+      }
+      await submitAndSimulateBlock(l2, bc, depositBlock);
     });
 
     it('test transfer', async () => {
@@ -47,6 +84,15 @@ contract('L2', accounts => {
     });
   });
 });
+
+async function addBlock (l2, bc, block) {
+  let {blockHash, blockNumber} = await l2.lastestBlock();
+
+  let [bcProof, txProofs] = bc.addBlock(block);
+  let newBlockHash = block.hash();
+  let blockPubData = '0x' + block.toBuffer().toString('hex');
+  await l2.submitBlock(blockHash, bc.tree.rootHash(), newBlockHash, blockPubData);
+}
 
 async function submitAndSimulateBlock (l2, bc, block) {
   let {blockHash, blockNumber} = await l2.lastestBlock();
