@@ -113,17 +113,4 @@ function readInfoTransfer() {
   }
 }
 
-function main () {
-  // console.log('xxxx');
-  // randomInit();
-  // readInfo();
-  // generateTransfer();
-  // let out = readInfoTransfer();
-  // generateDeposit();
-  // let out = readInfoDeposit();
-  // console.log(out);
-}
-
-main();
-
-module.exports = { readInfo, readInfoDeposit, readInfoTransfer}
+module.exports = { readInfo, readInfoDeposit, readInfoTransfer, generateDeposit}

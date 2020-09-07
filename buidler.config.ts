@@ -25,5 +25,13 @@ module.exports = {
       },
       evmVersion: 'istanbul'
     }
+  },
+  network: {
+    buidlerevm: {
+      blockGasLimit: 12500000
+    }
+  },
+  mocha: {
+    enableTimeouts: false
   }
 }
