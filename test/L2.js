@@ -36,8 +36,39 @@ contract('L2', accounts => {
 
       let depositBlock = new blockchain.Block(bc.head());
       let depositData = benchmark.readInfoDeposit();
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 60; i++) {
         depositBlock.addTransaction(new blockchain.Deposit(depositData.senderIDs[i], depositData.tokenIDs[i], new BN(depositData.amounts[i]), 1));
+      }
+      await submitAndSimulateBlock(l2, bc, depositBlock);
+    });
+
+    it.only('benchmark deposit2', async () => {
+      let l2 = await L2.new();
+
+      let bc = new blockchain.Blockchain();
+      // add block to blockchain
+      let block = new blockchain.Block(new BN(0));
+      let data = benchmark.readInfo();
+      for (let i = 0; i < data.userIDs.length; i++) {
+        block.addTransaction(new blockchain.Deposit(data.userIDs[i], data.tokenIDs[i], new BN(data.balances[i]), 0));
+      }
+
+      let depositData = benchmark.readInfoDeposit();
+      for (let i = 0; i < 30; i++) {
+        block.addTransaction(
+          new blockchain.Deposit(depositData.senderIDs[30]+i+1, depositData.tokenIDs[i], new BN(depositData.amounts[i]), 0)
+        );
+      }
+      await addBlock(l2, bc, block);
+
+      let depositBlock = new blockchain.Block(bc.head());
+      for (let i = 0; i < 30; i++) {
+        depositBlock.addTransaction(new blockchain.Deposit(depositData.senderIDs[i], depositData.tokenIDs[i], new BN(depositData.amounts[i]), 1));
+      }
+      for (let i = 0; i < 30; i++) {
+        depositBlock.addTransaction(
+          new blockchain.Deposit(depositData.senderIDs[30]+i+1, depositData.tokenIDs[i], new BN(depositData.amounts[i]), 1)
+        );
       }
       await submitAndSimulateBlock(l2, bc, depositBlock);
     });
