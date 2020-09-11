@@ -12,13 +12,13 @@ contract('L2', accounts => {
       let bc = new blockchain.Blockchain();
       // add block to blockchain
       let block = new blockchain.Block(new BN(0));
-      block.addTransaction(new blockchain.Deposit(1, 0, new BN(234), 0));
+      block.addTransaction(new blockchain.Deposit(14, 0, new BN(234), 0));
       let l2 = await L2.new();
       await submitAndSimulateBlock(l2, bc, block);
       // add to existing account with
       let block2 = new blockchain.Block(bc.head());
-      block2.addTransaction(new blockchain.Deposit(1, 1, new BN(89), 1));
-      block2.addTransaction(new blockchain.Deposit(1, 0, new BN(6), 2));
+      block2.addTransaction(new blockchain.Deposit(14, 1, new BN(89), 1));
+      block2.addTransaction(new blockchain.Deposit(14, 0, new BN(6), 2));
       await submitAndSimulateBlock(l2, bc, block2);
     });
 
@@ -74,7 +74,7 @@ contract('L2', accounts => {
     });
 
 
-    it.only('benchmark transfer', async () => {
+    it('benchmark transfer', async () => {
       let l2 = await L2.new();
 
       let bc = new blockchain.Blockchain();
@@ -131,7 +131,6 @@ async function submitAndSimulateBlock (l2, bc, block) {
     '0x' + bcProof.toBuffer().toString('hex'),
     txProofs
   );
-  console.log(result.receipt);
   console.log('gas used', result.receipt.gasUsed);
 }
 

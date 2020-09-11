@@ -12,7 +12,6 @@ contract MockTree {
     // ) external pure returns (uint256) {
     //     return uint256(RollUpLib.merkleAccountRoot(accountIDs, accountHashes, siblings, maxDepth));
     // }
-
     // function test(
     //     uint32[] calldata accountIDs,
     //     uint256[] calldata accountHashes,
@@ -21,9 +20,7 @@ contract MockTree {
     // ) external view returns (uint256) {
     //     uint32[] memory tmpAccountIDs = accountIDs;
     //     uint256[] memory tmpAccountHashes = accountHashes;
-
     //     console.log(tmpAccountHashes[0]);
-
     //     uint256 result = RollUpLib.merkleAccountRoot(
     //         tmpAccountIDs,
     //         tmpAccountHashes,

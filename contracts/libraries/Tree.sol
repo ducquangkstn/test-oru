@@ -1,7 +1,6 @@
 pragma solidity 0.6.6;
 
 
-
 /// @dev https://github.com/zkopru-network/zkopru/blob/1e65597833e47d8b34019c705576debd02765990/packages/contracts/contracts/libraries/Tree.sol
 library RollUpLib {
     uint256 public constant NULL_NODE = 0;
@@ -47,7 +46,8 @@ library RollUpLib {
                     continue;
                 }
                 if (
-                    tmpAccountHashes[i] == NULL_NODE_BYTES32 && siblings[siblingIndex] == NULL_NODE_BYTES32
+                    tmpAccountHashes[i] == NULL_NODE_BYTES32 &&
+                    siblings[siblingIndex] == NULL_NODE_BYTES32
                 ) {
                     tmpAccountHashes[accountIDIndex] = NULL_NODE_BYTES32;
                 } else {
@@ -109,7 +109,8 @@ library RollUpLib {
                     continue;
                 }
                 if (
-                    tmpAccountHashes[i] == NULL_NODE_BYTES32 && siblings[siblingIndex] == NULL_NODE_BYTES32
+                    tmpAccountHashes[i] == NULL_NODE_BYTES32 &&
+                    siblings[siblingIndex] == NULL_NODE_BYTES32
                 ) {
                     tmpAccountHashes[accountIDIndex] = NULL_NODE_BYTES32;
                 } else {

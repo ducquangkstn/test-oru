@@ -7,8 +7,8 @@ import {Utils} from "./libraries/Utils.sol";
 import {Bytes} from "./libraries/Bytes.sol";
 import "./Operations.sol";
 
-
 import "@nomiclabs/buidler/console.sol";
+
 contract L2 is Operations {
     uint256 constant FRAUD_PROOF_HASH = uint256(-1);
 
@@ -72,8 +72,8 @@ contract L2 is Operations {
             );
         }
 
-        // BlockchainProof memory bcProof = readBlockchainProofFromCalldata(2);
-        BlockchainProof memory bcProof = readBlockchainProof(blockChainProofData);
+        BlockchainProof memory bcProof = readBlockchainProofFromCalldata(2);
+        // BlockchainProof memory bcProof = readBlockchainProof(blockChainProofData);
         require(getBlockchainRoot(bcProof) == prevBlockStore.rootHash);
         // read calldata
         {
@@ -115,7 +115,14 @@ contract L2 is Operations {
             accountHashes[i] = getAccountHash(accountRoot, bcProof.accounts[i].nonce);
         }
         return
-            uint256(RollUpLib.merkleAccountRoot(bcProof.accountIDs, accountHashes, bcProof.siblings, 32));
+            uint256(
+                RollUpLib.merkleAccountRoot(
+                    bcProof.accountIDs,
+                    accountHashes,
+                    bcProof.siblings,
+                    32
+                )
+            );
     }
 
     function simulateDeposit(

@@ -28,7 +28,7 @@ module.exports = {
   },
   network: {
     buidlerevm: {
-      blockGasLimit: 12500000
+      blockGasLimit: 125000000
     }
   },
   mocha: {
