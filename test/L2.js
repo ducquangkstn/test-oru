@@ -44,7 +44,6 @@ contract('L2', accounts => {
       await submitAndSimulateBlock(l2, bc, depositBlock);
     });
 
-
     it.only('benchmark deposit2', async () => {
       let l2 = await L2.new();
 
@@ -59,7 +58,12 @@ contract('L2', accounts => {
       let depositData = benchmark.readInfoDeposit();
       for (let i = 0; i < 30; i++) {
         block.addTransaction(
-          new blockchain.Deposit(depositData.senderIDs[30]+i+1, depositData.tokenIDs[i], new BN(depositData.amounts[i]), 0)
+          new blockchain.Deposit(
+            depositData.senderIDs[30] + i + 1,
+            depositData.tokenIDs[i],
+            new BN(depositData.amounts[i]),
+            0
+          )
         );
       }
 
@@ -73,12 +77,16 @@ contract('L2', accounts => {
       }
       for (let i = 0; i < 30; i++) {
         depositBlock.addTransaction(
-          new blockchain.Deposit(depositData.senderIDs[30]+i+1, depositData.tokenIDs[i], new BN(depositData.amounts[i]), 1)
+          new blockchain.Deposit(
+            depositData.senderIDs[30] + i + 1,
+            depositData.tokenIDs[i],
+            new BN(depositData.amounts[i]),
+            1
+          )
         );
       }
       await submitAndSimulateBlock(l2, bc, depositBlock);
     });
-    
 
     it.only('benchmark transfer', async () => {
       let l2 = await L2.new();
@@ -127,7 +135,7 @@ async function addBlock (l2, bc, block) {
   let [bcProof, txProofs] = bc.addBlock(block);
   let newBlockHash = block.hash();
   let blockPubData = '0x' + block.toBuffer().toString('hex');
-  await l2.submitBlock(blockHash, bc.tree.rootHash(), newBlockHash, blockPubData);
+  await l2.submitBlock(blockHash, '0x' + bc.tree.rootHash().toJSON(), newBlockHash, blockPubData);
 }
 
 async function submitAndSimulateBlock (l2, bc, block) {
@@ -137,10 +145,8 @@ async function submitAndSimulateBlock (l2, bc, block) {
   let newBlockHash = block.hash();
   let blockPubData = '0x' + block.toBuffer().toString('hex');
 
-  await l2.submitBlock(blockHash, bc.tree.rootHash(), newBlockHash, blockPubData);
-  console.log('simulated start');
+  await l2.submitBlock(blockHash, '0x' + bc.tree.rootHash().toJSON(), newBlockHash, blockPubData);
   let result = await l2.simulatedBlock(blockNumber.add(new BN(1)), blockPubData, proofs);
-  console.log('simulated end');
 
   console.log('gas used', result.receipt.gasUsed);
 }

@@ -137,12 +137,12 @@ export class Block {
 
     hash(): BN {
         let txHash = Helpers.keccackBuffer(this.toBuffer());
-        return Helpers.hexToBN(web3.utils.soliditySha3(
+        return web3.utils.soliditySha3(
             web3.eth.abi.encodeParameters(
                 ['uint256', 'uint256', 'uint256'],
                 [this.preHash, this.root, txHash]
             )
-        ))
+        )
     }
 
     toBuffer(): Buffer {

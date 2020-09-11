@@ -26,32 +26,32 @@ contract Operations {
 
     struct DepositProof {
         uint48 tokenAmount;
-        uint256[12] tokenProof;
-        uint256[32] accountSiblings;
+        bytes32[12] tokenProof;
+        bytes32[32] accountSiblings;
         uint32 nonce;
     }
 
     struct TransferProof {
         uint48 senderTokenAmount;
-        uint256[12] senderTokenProof;
-        uint256[32] senderAccountSiblings;
+        bytes32[12] senderTokenProof;
+        bytes32[32] senderAccountSiblings;
         uint32 senderNonce;
         uint48 receiverTokenAmount;
-        uint256[12] receiverTokenProof;
-        uint256[32] receiverAccountSiblings;
+        bytes32[12] receiverTokenProof;
+        bytes32[32] receiverAccountSiblings;
         uint32 receiverNonce;
     }
 
-    function getAccountHash(uint256 accountRootHash, uint32 nonce)
+    function getAccountHash(bytes32 accountRootHash, uint32 nonce)
         internal
         pure
-        returns (uint256)
+        returns (bytes32)
     {
         if (accountRootHash == 0 && nonce == 0) {
             return 0;
         }
         // TODO: fix this to uint32
-        return uint256(keccak256(abi.encodePacked(accountRootHash, uint256(nonce))));
+        return keccak256(abi.encodePacked(accountRootHash, uint256(nonce)));
     }
 
     function readDepositProof(bytes memory data)
@@ -61,12 +61,12 @@ contract Operations {
     {
         uint256 offset = 0;
         for (uint256 i = 0; i < 32; i++) {
-            (offset, depositProof.accountSiblings[i]) = Bytes.readUInt256(data, offset);
+            (offset, depositProof.accountSiblings[i]) = Bytes.readBytes32(data, offset);
         }
 
         (offset, depositProof.tokenAmount) = Bytes.readUInt48(data, offset);
         for (uint256 i = 0; i < 12; i++) {
-            (offset, depositProof.tokenProof[i]) = Bytes.readUInt256(data, offset);
+            (offset, depositProof.tokenProof[i]) = Bytes.readBytes32(data, offset);
         }
         (offset, depositProof.nonce) = Bytes.readUInt32(data, offset);
         require(offset == data.length, "not eof");
@@ -79,21 +79,21 @@ contract Operations {
     {
         uint256 offset = 0;
         for (uint256 i = 0; i < 32; i++) {
-            (offset, transferProof.senderAccountSiblings[i]) = Bytes.readUInt256(data, offset);
+            (offset, transferProof.senderAccountSiblings[i]) = Bytes.readBytes32(data, offset);
         }
 
         (offset, transferProof.senderTokenAmount) = Bytes.readUInt48(data, offset);
         for (uint256 i = 0; i < 12; i++) {
-            (offset, transferProof.senderTokenProof[i]) = Bytes.readUInt256(data, offset);
+            (offset, transferProof.senderTokenProof[i]) = Bytes.readBytes32(data, offset);
         }
         (offset, transferProof.senderNonce) = Bytes.readUInt32(data, offset);
         for (uint256 i = 0; i < 32; i++) {
-            (offset, transferProof.receiverAccountSiblings[i]) = Bytes.readUInt256(data, offset);
+            (offset, transferProof.receiverAccountSiblings[i]) = Bytes.readBytes32(data, offset);
         }
 
         (offset, transferProof.receiverTokenAmount) = Bytes.readUInt48(data, offset);
         for (uint256 i = 0; i < 12; i++) {
-            (offset, transferProof.receiverTokenProof[i]) = Bytes.readUInt256(data, offset);
+            (offset, transferProof.receiverTokenProof[i]) = Bytes.readBytes32(data, offset);
         }
         (offset, transferProof.receiverNonce) = Bytes.readUInt32(data, offset);
         require(offset == data.length, "not eof");

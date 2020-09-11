@@ -11,26 +11,26 @@ import "./Operations.sol";
 // import "@nomiclabs/buidler/console.sol";
 
 contract L2 is Operations {
-    uint256 constant FRAUD_PROOF_HASH = uint256(-1);
+    bytes32 constant FRAUD_PROOF_HASH = bytes32(uint256(-1));
 
     enum OpType {Noop, Transfer, Deposit}
 
     struct BlockStore {
-        uint256 rootHash;
-        uint256 blockHash;
+        bytes32 rootHash;
+        bytes32 blockHash;
         bool isConfirmed;
     }
 
     BlockStore[] public blocks;
 
     constructor() public {
-        blocks.push(BlockStore({blockHash: 0, rootHash: 0, isConfirmed: true}));
+        blocks.push(BlockStore({blockHash: bytes32(0), rootHash: bytes32(0), isConfirmed: true}));
     }
 
     function lastestBlock()
         external
         view
-        returns (uint256 blockHash, uint256 rootHash, uint256 blockNumber)
+        returns (bytes32 blockHash, bytes32 rootHash, uint256 blockNumber)
     {
         blockHash = blocks[blocks.length - 1].blockHash;
         rootHash = blocks[blocks.length - 1].rootHash;
@@ -38,9 +38,9 @@ contract L2 is Operations {
     }
 
     function submitBlock(
-        uint256 _preHash,
-        uint256 _rootHash,
-        uint256 _blockHash,
+        bytes32 _preHash,
+        bytes32 _rootHash,
+        bytes32 _blockHash,
         bytes calldata /* pubData */
     ) external {
         require(blocks[blocks.length - 1].blockHash == _preHash, "prehash not match");
@@ -55,9 +55,9 @@ contract L2 is Operations {
 
         bytes memory pubData = _pubData;
         {
-            uint256 txsHash = uint256(keccak256(pubData));
+            bytes32 txsHash = keccak256(pubData);
             require(
-                uint256(
+                bytes32(
                     keccak256(
                         abi.encodePacked(
                             prevBlockStore.blockHash,
@@ -70,7 +70,7 @@ contract L2 is Operations {
             );
         }
         {
-            uint256 rootHash = prevBlockStore.rootHash;
+            bytes32 rootHash = prevBlockStore.rootHash;
 
             uint256 offset = 0;
             uint256 proofIndex = 0;
@@ -80,7 +80,6 @@ contract L2 is Operations {
                 offset++;
                 if (opType == OpType.Deposit) {
                     Deposit memory deposit = readDepositData(pubData, offset);
-
                     rootHash = simulateDeposit(deposit, rootHash, proof[proofIndex]);
                     offset += DEPOSIT_MSG_SIZE;
                 } else if (opType == OpType.Transfer) {
@@ -98,14 +97,14 @@ contract L2 is Operations {
         blocks[index].isConfirmed = true;
     }
 
-    function simulateDeposit(Deposit memory deposit, uint256 preRootHash, bytes memory proof)
+    function simulateDeposit(Deposit memory deposit, bytes32 preRootHash, bytes memory proof)
         internal
         pure
-        returns (uint256 newRootHash)
+        returns (bytes32 newRootHash)
     {
         DepositProof memory depositProof = readDepositProof(proof);
-        uint256 accountHash;
-        uint256 accountRootHash;
+        bytes32 accountHash;
+        bytes32 accountRootHash;
         //verify the prevRoot is match with root hash of prev block
         accountRootHash = RollUpLib.merkleTokenRoot(deposit.tokenId, depositProof.tokenAmount, depositProof.tokenProof);
         accountHash = getAccountHash(accountRootHash, depositProof.nonce);
@@ -131,14 +130,14 @@ contract L2 is Operations {
         );
     }
 
-    function simulateTransfer(Transfer memory transfer, uint256 preRootHash, bytes memory proof)
+    function simulateTransfer(Transfer memory transfer, bytes32 preRootHash, bytes memory proof)
         internal
         pure
-        returns (uint256 newRootHash)
+        returns (bytes32 newRootHash)
     {
         TransferProof memory transferProof = readTransferProof(proof);
-        uint256 accountHash;
-        uint256 accountRootHash;
+        bytes32 accountHash;
+        bytes32 accountRootHash;
 
         //verify the prevRoot is match with root hash of prev block
         accountRootHash = RollUpLib.merkleTokenRoot(
