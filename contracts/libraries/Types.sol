@@ -1,55 +1,72 @@
-pragma solidity 0.6.6;
+// SPDX-License-Identifier: MIT
 
-struct DepositOp {
-    uint48 depositID;
-}
+pragma solidity ^0.6.0;
 
-struct SettlementOp1 {
-    uint settlementType;
+// @dev all types should have correct order
+contract Types {
+    enum OpType {
+        Noop,
+        SettlementOp11, // matching 2 orders
+        SettlementOp12,
+        SettlementOp13,
+        SettlementOp21, // matching 1 order and 1 loo
+        SettlementOp22,
+        SettlementOp31, // matching 2 loos
+        DepositToNew,
+        Deposit,
+        Withdraw,
+        Exit
+    }
 
-    uint16 tokenID1;
-    uint16 tokenID2;
+    struct DepositOp {
+        uint48 depositID;
+    }
 
-    uint32 accountID1;
-    uint32 accountID2;
-    uint amount1;
-    uint amount2;
-    uint rate1;
-    uint rate2;
-    uint8 fee1;
-    uint8 fee2;
-    uint32 validSince1;
-    uint32 validPeriod1;
-    uint32 validSince2;
-    uint32 validPeriod2;
-}
+    struct SettlementOp1 {
+        OpType opType;
+        uint16 tokenID1;
+        uint16 tokenID2;
+        uint32 accountID1;
+        uint32 accountID2;
+        uint256 amount1;
+        uint256 amount2;
+        uint256 rate1;
+        uint256 rate2;
+        uint256 fee1;
+        uint256 fee2;
+        uint32 validSince1;
+        uint32 validSince2;
+        uint32 validPeriod1;
+        uint32 validPeriod2;
+    }
 
-struct SettlementOp2 {
-    bool isAllOrNonceOrder;
-    uint32 accountID1;
-    uint48 looID;
-    uint amount1;
-    uint rate1;
-    uint8 fee1;
-    uint32 validSince1;
-    uint32 validPeriod1;
-}
+    struct SettlementOp2 {
+        bool isAllOrNonceOrder;
+        uint32 accountID1;
+        uint48 looID;
+        uint256 amount1;
+        uint256 rate1;
+        uint8 fee1;
+        uint32 validSince1;
+        uint32 validPeriod1;
+    }
 
-struct SettlementOp3 {
-    uint48 looID1;
-    uint48 looID2;
-}
+    struct SettlementOp3 {
+        uint48 looID1;
+        uint48 looID2;
+    }
 
-struct WithdrawOp {
-    uint32 accountID;
-    uint16 tokenID;
-    uint amount;
-    uint32 validSince;
-    address to;
-    uint8 fee;
-}
+    struct WithdrawOp {
+        uint32 accountID;
+        uint16 tokenID;
+        uint256 amount;
+        uint32 validSince;
+        address to;
+        uint8 fee;
+    }
 
-struct ExitOp {
-    uint48 pendingListID;
-    bytes32 accountHash;
+    struct ExitOp {
+        uint48 pendingListID;
+        bytes32 accountHash;
+    }
 }

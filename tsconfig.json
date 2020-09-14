@@ -8,5 +8,5 @@
     "strictPropertyInitialization": false
   },
   "include": ["./scripts", "./test"],
-  "files": ["./buidler.config.ts"]
+  "files": ["./buidler.config.ts", "node_modules/buidler-contract-sizer/type-extensions.d.ts"]
 }

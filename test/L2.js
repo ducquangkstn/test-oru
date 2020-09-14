@@ -1,3 +1,5 @@
+'use strict';
+
 const L2 = artifacts.require('L2');
 
 const {expectEvent, expectRevert} = require('@openzeppelin/test-helpers');
@@ -6,7 +8,17 @@ const BN = web3.utils.BN;
 const blockchain = require('./blockchain');
 const benchmark = require('./benchmark/random');
 
+const fs = require('fs');
+const {assert} = require('console');
+
+let admin;
+let operator;
+
 contract('L2', accounts => {
+  before('init ', async () => {
+    admin = accounts[1];
+    operator = accounts[2];
+  });
   describe('test', async () => {
     it('test deposit', async () => {
       let bc = new blockchain.Blockchain();
@@ -22,7 +34,7 @@ contract('L2', accounts => {
       await submitAndSimulateBlock(l2, bc, block2);
     });
 
-    it.only('benchmark deposit', async () => {
+    it('benchmark deposit', async () => {
       let l2 = await L2.new();
 
       let bc = new blockchain.Blockchain();
@@ -44,7 +56,7 @@ contract('L2', accounts => {
       await submitAndSimulateBlock(l2, bc, depositBlock);
     });
 
-    it.only('benchmark deposit2', async () => {
+    it('benchmark deposit2', async () => {
       let l2 = await L2.new();
 
       let bc = new blockchain.Blockchain();
@@ -88,7 +100,7 @@ contract('L2', accounts => {
       await submitAndSimulateBlock(l2, bc, depositBlock);
     });
 
-    it.only('benchmark transfer', async () => {
+    it('benchmark transfer', async () => {
       let l2 = await L2.new();
 
       let bc = new blockchain.Blockchain();
@@ -125,6 +137,16 @@ contract('L2', accounts => {
 
       let l2 = await L2.new();
       await submitAndSimulateBlock(l2, bc, block);
+    });
+
+    it.only('test submitBlock', async () => {
+      let l2 = await L2.new(admin);
+      l2.addOperator(operator, {from: admin});
+
+      let testSuit = JSON.parse(fs.readFileSync('./testSample/test.json'));
+      await l2.submitBlock(new BN(1), testSuit.miniBlocks, new BN(testSuit.timestamp), {from: operator});
+      let result = await l2.lastestBlock();
+      assert(result.blockHash == testSuit.expectedBlockRoot, 'unexpected block root');
     });
   });
 });

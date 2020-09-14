@@ -1,5 +1,4 @@
-pragma solidity 0.6.6;
-
+pragma solidity ^0.6.0;
 
 // Functions named bytesToX, except bytesToBytes20, where X is some type of size N < 32 (size of one word)
 // implements the following algorithm:
@@ -24,30 +23,6 @@ library Bytes {
 
     function toBytesFromUInt128(uint128 self) internal pure returns (bytes memory _bts) {
         return toBytesFromUIntTruncated(uint256(self), 16);
-    }
-
-    // Copies 'len' lower bytes from 'self' into a new 'bytes memory'.
-    // Returns the newly created 'bytes memory'. The returned bytes will be of length 'len'.
-    function toBytesFromUIntTruncated(uint256 self, uint8 byteLength)
-        private
-        pure
-        returns (bytes memory bts)
-    {
-        require(byteLength <= 32, "bt211");
-        bts = new bytes(byteLength);
-        // Even though the bytes will allocate a full word, we don't want
-        // any potential garbage bytes in there.
-        uint256 data = self << ((32 - byteLength) * 8);
-        assembly {
-            mstore(
-                add(
-                    bts,
-                    /*BYTES_HEADER_SIZE*/
-                    32
-                ),
-                data
-            )
-        }
     }
 
     // Copies 'self' into a new 'bytes memory'.
@@ -174,11 +149,11 @@ library Bytes {
     // Get slice from bytes arrays
     // Returns the newly created 'bytes memory'
     // NOTE: theoretically possible overflow of (_start + _length)
-    function slice(bytes memory _bytes, uint256 _start, uint256 _length)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function slice(
+        bytes memory _bytes,
+        uint256 _start,
+        uint256 _length
+    ) internal pure returns (bytes memory) {
         require(_bytes.length >= (_start + _length), "bse11"); // bytes length is less then start byte + length bytes
 
         bytes memory tempBytes = new bytes(_length);
@@ -204,25 +179,25 @@ library Bytes {
     }
 
     /// Reads byte stream
-    /// @return new_offset - offset + amount of bytes read
+    /// @return newOffset - offset + amount of bytes read
     /// @return data - actually read data
     // NOTE: theoretically possible overflow of (_offset + _length)
-    function read(bytes memory _data, uint256 _offset, uint256 _length)
-        internal
-        pure
-        returns (uint256 new_offset, bytes memory data)
-    {
+    function read(
+        bytes memory _data,
+        uint256 _offset,
+        uint256 _length
+    ) internal pure returns (uint256 newOffset, bytes memory data) {
         data = slice(_data, _offset, _length);
-        new_offset = _offset + _length;
+        newOffset = _offset + _length;
     }
 
     // NOTE: theoretically possible overflow of (_offset + 1)
     function readBool(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, bool r)
+        returns (uint256 newOffset, bool r)
     {
-        new_offset = _offset + 1;
+        newOffset = _offset + 1;
         r = uint8(_data[_offset]) != 0;
     }
 
@@ -230,9 +205,9 @@ library Bytes {
     function readUInt8(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint8 r)
+        returns (uint256 newOffset, uint8 r)
     {
-        new_offset = _offset + 1;
+        newOffset = _offset + 1;
         r = uint8(_data[_offset]);
     }
 
@@ -240,9 +215,9 @@ library Bytes {
     function readUInt16(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint16 r)
+        returns (uint256 newOffset, uint16 r)
     {
-        new_offset = _offset + 2;
+        newOffset = _offset + 2;
         r = bytesToUInt16(_data, _offset);
     }
 
@@ -250,9 +225,9 @@ library Bytes {
     function readUInt24(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint24 r)
+        returns (uint256 newOffset, uint24 r)
     {
-        new_offset = _offset + 3;
+        newOffset = _offset + 3;
         r = bytesToUInt24(_data, _offset);
     }
 
@@ -260,38 +235,38 @@ library Bytes {
     function readUInt32(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint32 r)
+        returns (uint256 newOffset, uint32 r)
     {
-        new_offset = _offset + 4;
+        newOffset = _offset + 4;
         r = bytesToUInt32(_data, _offset);
     }
- // NOTE: theoretically possible overflow of (_offset + 16)
+
+    // NOTE: theoretically possible overflow of (_offset + 16)
     function readUInt48(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint48 r)
+        returns (uint256 newOffset, uint48 r)
     {
-        new_offset = _offset + 6;
+        newOffset = _offset + 6;
         r = bytesToUint48(_data, _offset);
     }
-
 
     // NOTE: theoretically possible overflow of (_offset + 16)
     function readUInt128(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint128 r)
+        returns (uint256 newOffset, uint128 r)
     {
-        new_offset = _offset + 16;
+        newOffset = _offset + 16;
         r = bytesToUInt128(_data, _offset);
     }
 
     function readUInt256(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint256 r)
+        returns (uint256 newOffset, uint256 r)
     {
-        new_offset = _offset + 32;
+        newOffset = _offset + 32;
         r = bytesToUInt256(_data, _offset);
     }
 
@@ -299,9 +274,9 @@ library Bytes {
     function readUInt160(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, uint160 r)
+        returns (uint256 newOffset, uint160 r)
     {
-        new_offset = _offset + 20;
+        newOffset = _offset + 20;
         r = bytesToUInt160(_data, _offset);
     }
 
@@ -309,9 +284,9 @@ library Bytes {
     function readAddress(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, address r)
+        returns (uint256 newOffset, address r)
     {
-        new_offset = _offset + 20;
+        newOffset = _offset + 20;
         r = bytesToAddress(_data, _offset);
     }
 
@@ -319,9 +294,9 @@ library Bytes {
     function readBytes20(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, bytes20 r)
+        returns (uint256 newOffset, bytes20 r)
     {
-        new_offset = _offset + 20;
+        newOffset = _offset + 20;
         r = bytesToBytes20(_data, _offset);
     }
 
@@ -329,9 +304,9 @@ library Bytes {
     function readBytes32(bytes memory _data, uint256 _offset)
         internal
         pure
-        returns (uint256 new_offset, bytes32 r)
+        returns (uint256 newOffset, bytes32 r)
     {
-        new_offset = _offset + 32;
+        newOffset = _offset + 32;
         r = bytesToBytes32(_data, _offset);
     }
 
@@ -397,15 +372,39 @@ library Bytes {
     }
 
     /// Trim bytes into single word
-    function trim(bytes memory _data, uint256 _new_length) internal pure returns (uint256 r) {
-        require(_new_length <= 0x20, "trm10"); // new_length is longer than word
-        require(_data.length >= _new_length, "trm11"); // data is to short
+    function trim(bytes memory _data, uint256 _newLength) internal pure returns (uint256 r) {
+        require(_newLength <= 0x20, "trm10"); // new_length is longer than word
+        require(_data.length >= _newLength, "trm11"); // data is to short
 
         uint256 a;
         assembly {
             a := mload(add(_data, 0x20)) // load bytes into uint256
         }
 
-        return a >> ((0x20 - _new_length) * 8);
+        return a >> ((0x20 - _newLength) * 8);
+    }
+
+    // Copies 'len' lower bytes from 'self' into a new 'bytes memory'.
+    // Returns the newly created 'bytes memory'. The returned bytes will be of length 'len'.
+    function toBytesFromUIntTruncated(uint256 self, uint8 byteLength)
+        private
+        pure
+        returns (bytes memory bts)
+    {
+        require(byteLength <= 32, "bt211");
+        bts = new bytes(byteLength);
+        // Even though the bytes will allocate a full word, we don't want
+        // any potential garbage bytes in there.
+        uint256 data = self << ((32 - byteLength) * 8);
+        assembly {
+            mstore(
+                add(
+                    bts,
+                    /*BYTES_HEADER_SIZE*/
+                    32
+                ),
+                data
+            )
+        }
     }
 }
