@@ -68,6 +68,7 @@ contract Deserializer is Types {
     }
 
     // TODO: convert this into SafeMath
+    /// @dev 32 bits for mantisa, 8 bits for exp
     function readAmount(bytes memory _data, uint256 _offset)
         internal
         pure
@@ -79,6 +80,7 @@ contract Deserializer is Types {
         amount = uint256(mantisa)**uint256(exp);
     }
 
+    /// @dev 10 bit for mantisa, 6 bit for 
     function readFee(bytes memory _data, uint256 _offset)
         internal
         pure

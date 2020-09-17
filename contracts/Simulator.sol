@@ -201,7 +201,7 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
         }
         if (amount1 < s.amount1) {
             // partial fill on order 1
-            if (s.opType == OpType.SettlementOp11) {
+            if (s.opType != OpType.SettlementOp11) {
                 return FraudProofType.InvalidPartialFilled;
             }
             leftOverFee = (s.fee1 * (s.amount1 - amount1)) / s.amount1;
@@ -219,7 +219,7 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
             );
         }
         if (amount2 < s.amount2) {
-            if (s.opType != OpType.SettlementOp13) {
+            if (s.opType == OpType.SettlementOp13) {
                 return FraudProofType.InvalidPartialFilled;
             }
             leftOverFee = (s.fee2 * (s.amount2 - amount2)) / s.amount2;
