@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.0;
 
-// SPDX-License-Identifier: MIT
-library RollUpLib {
+library Tree {
     bytes32 public constant NULL_NODE = 0;
 
     function merkleRoot(
@@ -30,11 +31,11 @@ library RollUpLib {
 
     /// @dev get the merkle root from the leaf node and its siblings
     function merkleAccountRoot(
+        uint32 accountID,
         bytes32 leaf,
-        uint32 index,
         bytes32[32] memory siblings
     ) internal pure returns (bytes32) {
-        uint32 path = index;
+        uint32 path = accountID;
         bytes32 node = leaf;
         for (uint256 i = 0; i < siblings.length; i++) {
             if (node == NULL_NODE && siblings[i] == NULL_NODE) {
@@ -55,11 +56,11 @@ library RollUpLib {
 
     function merkleTokenRoot(
         uint16 tokenId,
-        uint48 tokenAmount,
-        bytes32[12] memory tokenProof
+        uint256 tokenAmount,
+        bytes32[10] memory tokenProof
     ) internal pure returns (bytes32) {
         uint16 path = tokenId;
-        bytes32 node = bytes32(uint256(tokenAmount));
+        bytes32 node = bytes32(tokenAmount);
         for (uint256 i = 0; i < tokenProof.length; i++) {
             if (node == NULL_NODE && tokenProof[i] == NULL_NODE) {
                 path >>= 1;

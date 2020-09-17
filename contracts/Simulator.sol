@@ -8,11 +8,16 @@ import "./libraries/Tree.sol";
 import "./libraries/Bytes.sol";
 import "./libraries/Types.sol";
 
+import "./ExecutionProof.sol";
 import "./Deserializer.sol";
 import "./interface/ILayer2.sol";
 import "./utils/PermissionGroups.sol";
 
-contract Simulator is Deserializer, PermissionGroups {
+contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
+    uint16 private constant FEE_TOKEN_INDEX = 0;
+    uint32 private constant ADMIN_ACCOUNT_INDEX = 0;
+
+    enum FraudProofType {Valid, SettlementRateMissMatch, InvalidPartialFilled, InsufficientAmount}
     struct MiniBlockProof {
         bytes32[] sibling;
     }
@@ -60,8 +65,8 @@ contract Simulator is Deserializer, PermissionGroups {
         bytes calldata _miniBlockData,
         bytes calldata _miniBlockProof,
         bytes calldata _preStateHashProof,
-        bytes[] calldata /*_executionProof*/
-    ) external {
+        bytes[] calldata _executionProof
+    ) external returns (FraudProofType fpType) {
         FraudProofData memory data;
         data.blockNumber = blockNumber;
         data.miniBlockNumber = miniBlockNumber;
@@ -101,26 +106,253 @@ contract Simulator is Deserializer, PermissionGroups {
                     opType == OpType.SettlementOp12 ||
                     opType == OpType.SettlementOp13
                 ) {
+                    SettlementOp1 memory settlement1 = readSettlementOp1(
+                        data.miniBlockData,
+                        offset,
+                        opType
+                    );
+                    fpType = simulateSettlement1(settlement1, data, _executionProof[proofIndex]);
+                    if (fpType != FraudProofType.Valid) {
+                        return fpType;
+                    }
                     offset += SETTLEMENT1_BYTES_SIZE;
                 } else {
                     revert("slashing: invalid Optype");
                 }
-                //         // Deposit memory deposit = readDepositData(pubData, offset);
-                //         // rootHash = simulateDeposit(deposit, rootHash, proof[proofIndex]);
-                //         offset += DEPOSIT_MSG_SIZE;
-                //     } else if (opType == OpType.Transfer) {
-                //         // Transfer memory transfer = readTransferData(pubData, offset);
-                //         // rootHash = simulateTransfer(transfer, rootHash, proof[proofIndex]);
-                //         offset += TRANSFER_MSG_SIZE;
-                //     } else {
-                //         revert("unexpected op type"); // op type is invalid
-                //     }
-                //     proofIndex++;
-                //     require(rootHash != FRAUD_PROOF_HASH, "op is invalid"); // slash and revert
-                // }
-                // require(rootHash == currentBlockStore.rootHash, "final root hash is miss-match");
+                proofIndex++;
+            }
+            simulatedAddFee(data, _executionProof[proofIndex]);
+            require(
+                currentStateHash ==
+                    keccak256(
+                        abi.encodePacked(
+                            data.stateData.stateRoot,
+                            data.stateData.looRoot,
+                            data.stateData.accountMax,
+                            data.stateData.looMax
+                        )
+                    ),
+                "unexpected end stateHash"
+            );
+        }
+    }
+
+    function simulatedAddFee(FraudProofData memory data, bytes memory proofData) internal pure {
+        AddFeeProof memory proof = readAddFeeProof(proofData);
+        // verify previous stateRoot
+        bytes32 accountRoot = Tree.merkleTokenRoot(
+            FEE_TOKEN_INDEX,
+            proof.tokenProof.amount,
+            proof.tokenProof.tokenSiblings
+        );
+        require(
+            data.stateData.stateRoot ==
+                Tree.merkleAccountRoot(
+                    ADMIN_ACCOUNT_INDEX,
+                    keccak256(abi.encodePacked(accountRoot, proof.pubAccountHash)),
+                    proof.accountSiblings
+                ),
+            "miss-match stateRoot"
+        );
+        // calculate newStateRoot
+        accountRoot = Tree.merkleTokenRoot(
+            FEE_TOKEN_INDEX,
+            proof.tokenProof.amount + data.blockFee,
+            proof.tokenProof.tokenSiblings
+        );
+        data.stateData.stateRoot = Tree.merkleAccountRoot(
+            ADMIN_ACCOUNT_INDEX,
+            keccak256(abi.encodePacked(accountRoot, proof.pubAccountHash)),
+            proof.accountSiblings
+        );
+    }
+
+    function simulateSettlement1(
+        SettlementOp1 memory s,
+        FraudProofData memory data,
+        bytes memory proofData
+    ) internal pure returns (FraudProofType) {
+        if (s.rate1 * s.rate2 > 1e36) {
+            return FraudProofType.SettlementRateMissMatch;
+        }
+
+        uint256 amount1;
+        uint256 amount2;
+        uint256 leftOverFee;
+        bytes32 looHash = bytes32(0);
+        if (s.validSince1 <= s.validSince2) {
+            // fill with rate = s.rate1
+            amount2 = calAmountOut(s.amount1, s.rate1);
+            if (amount2 > s.amount2) {
+                amount2 = s.amount2;
+                amount1 = calAmountIn(s.amount2, s.rate1);
+            } else {
+                amount1 = s.amount1;
+            }
+        } else {
+            // fill with rate = s.rate2
+            amount1 = calAmountOut(s.amount2, s.rate2);
+            if (amount1 > s.amount1) {
+                amount1 = s.amount1;
+                amount2 = calAmountIn(s.amount1, s.rate2);
+            } else {
+                amount2 = s.amount2;
             }
         }
+        if (amount1 < s.amount1) {
+            // partial fill on order 1
+            if (s.opType == OpType.SettlementOp11) {
+                return FraudProofType.InvalidPartialFilled;
+            }
+            leftOverFee = (s.fee1 * (s.amount1 - amount1)) / s.amount1;
+            looHash = keccak256(
+                abi.encodePacked(
+                    s.accountID1,
+                    s.tokenID1,
+                    s.tokenID2,
+                    s.amount1 - amount1,
+                    s.rate1,
+                    s.validSince1,
+                    s.validPeriod1,
+                    leftOverFee
+                )
+            );
+        }
+        if (amount2 < s.amount2) {
+            if (s.opType != OpType.SettlementOp13) {
+                return FraudProofType.InvalidPartialFilled;
+            }
+            leftOverFee = (s.fee2 * (s.amount2 - amount2)) / s.amount2;
+            looHash = keccak256(
+                abi.encodePacked(
+                    s.accountID2,
+                    s.tokenID2,
+                    s.tokenID1,
+                    s.amount2 - amount2,
+                    s.rate2,
+                    s.validSince2,
+                    s.validPeriod2,
+                    leftOverFee
+                )
+            );
+        }
+
+        (uint256 offset, SettlementProof memory proof) = readSettlementProof(proofData);
+        bytes32 accountRoot = Tree.merkleTokenRoot(
+            s.tokenID1,
+            proof.accountProof1.tokenProof1.amount,
+            proof.accountProof1.tokenProof1.tokenSiblings
+        );
+        require(
+            data.stateData.stateRoot ==
+                Tree.merkleAccountRoot(
+                    s.accountID1,
+                    keccak256(abi.encodePacked(accountRoot, proof.accountProof1.pubAccountHash)),
+                    proof.accountProof1.accountSiblings
+                ),
+            "miss-match stateRoot"
+        );
+        if (proof.accountProof1.tokenProof1.amount < amount1) {
+            return FraudProofType.InsufficientAmount;
+        }
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID1,
+            proof.accountProof1.tokenProof1.amount - amount1,
+            proof.accountProof1.tokenProof1.tokenSiblings
+        );
+        require(
+            accountRoot ==
+                Tree.merkleTokenRoot(
+                    s.tokenID2,
+                    proof.accountProof1.tokenProof2.amount,
+                    proof.accountProof1.tokenProof2.tokenSiblings
+                ),
+            "accountRoot is miss-match"
+        );
+        // calculate new state root for account1
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID2,
+            proof.accountProof1.tokenProof2.amount + amount2,
+            proof.accountProof1.tokenProof2.tokenSiblings
+        );
+        data.stateData.stateRoot = Tree.merkleAccountRoot(
+            s.accountID1,
+            keccak256(abi.encodePacked(accountRoot, proof.accountProof1.pubAccountHash)),
+            proof.accountProof1.accountSiblings
+        );
+
+        // verify the proof for account 2 is correct
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID2,
+            proof.accountProof2.tokenProof2.amount,
+            proof.accountProof2.tokenProof2.tokenSiblings
+        );
+        require(
+            data.stateData.stateRoot ==
+                Tree.merkleAccountRoot(
+                    s.accountID2,
+                    keccak256(abi.encodePacked(accountRoot, proof.accountProof2.pubAccountHash)),
+                    proof.accountProof2.accountSiblings
+                ),
+            "miss-match stateRoot"
+        );
+        if (proof.accountProof1.tokenProof2.amount < amount2) {
+            return FraudProofType.InsufficientAmount;
+        }
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID2,
+            proof.accountProof1.tokenProof2.amount - amount2,
+            proof.accountProof1.tokenProof2.tokenSiblings
+        );
+        require(
+            accountRoot ==
+                Tree.merkleTokenRoot(
+                    s.tokenID1,
+                    proof.accountProof2.tokenProof1.amount,
+                    proof.accountProof2.tokenProof1.tokenSiblings
+                ),
+            "accountRoot21 is miss-match"
+        );
+        // calculate new state root for account1
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID1,
+            proof.accountProof2.tokenProof1.amount + amount1,
+            proof.accountProof2.tokenProof1.tokenSiblings
+        );
+        data.stateData.stateRoot = Tree.merkleAccountRoot(
+            s.accountID2,
+            keccak256(abi.encodePacked(accountRoot, proof.accountProof2.pubAccountHash)),
+            proof.accountProof2.accountSiblings
+        );
+
+        if (looHash != bytes32(0)) {
+            // verifyAndCalculateLooRoot
+            data.stateData.looMax += 1;
+            bytes32[] memory looSiblings = new bytes32[](44);
+            for (uint256 i = 0; i < 44; i++) {
+                (offset, looSiblings[i]) = Bytes.readBytes32(proofData, offset);
+            }
+            require(
+                data.stateData.looRoot ==
+                    Tree.merkleRoot(bytes32(0), uint256(data.stateData.looMax), looSiblings),
+                "looRoot is miss-match"
+            );
+            data.stateData.looRoot = Tree.merkleRoot(
+                looHash,
+                uint256(data.stateData.looMax),
+                looSiblings
+            );
+        }
+        require(offset == proofData.length, "not eof");
+        data.blockFee += s.fee1 + s.fee2 - leftOverFee;
+    }
+
+    function calAmountOut(uint256 amountIn, uint256 rate) internal pure returns (uint256) {
+        return (amountIn * rate) / 1e18;
+    }
+
+    function calAmountIn(uint256 amountOut, uint256 rate) internal pure returns (uint256) {
+        return (amountOut * 1e18 + rate - 1) / rate;
     }
 
     function verifyBlockInfoHash(
@@ -182,7 +414,7 @@ contract Simulator is Deserializer, PermissionGroups {
         for (uint256 i = 0; i < siblings.length; i++) {
             (offset, siblings[i]) = Bytes.readBytes32(pubData, offset);
         }
-        blockInfoHash = RollUpLib.merkleRoot(miniBlockHash, miniBlockNumber, siblings);
+        blockInfoHash = Tree.merkleRoot(miniBlockHash, miniBlockNumber, siblings);
     }
 
     function readAndVerifyPreStateData(

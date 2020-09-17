@@ -7,8 +7,8 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./libraries/UniERC20.sol";
-import {RollUpLib} from "./libraries/Tree.sol";
-import {Bytes} from "./libraries/Bytes.sol";
+import "./libraries/Tree.sol";
+import "./libraries/Bytes.sol";
 
 import "./Deserializer.sol";
 import "./interface/ILayer2.sol";
@@ -65,7 +65,7 @@ contract L2 is ILayer2, Deserializer, PermissionGroups {
         for (uint256 i = 0; i < miniBlocks.length; i++) {
             miniBlockHash[i] = handleBlock(miniBlocks[i]);
         }
-        bytes32 blockDataHash = RollUpLib.merkleTxsRoot(miniBlockHash);
+        bytes32 blockDataHash = Tree.merkleTxsRoot(miniBlockHash);
         bytes32 prevBlockRoot = blocks[blocks.length - 1].blockRoot;
         bytes32 blockRoot = keccak256(
             abi.encodePacked(

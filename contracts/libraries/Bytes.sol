@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.6.0;
 
 // Functions named bytesToX, except bytesToBytes20, where X is some type of size N < 32 (size of one word)

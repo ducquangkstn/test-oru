@@ -22,6 +22,9 @@ contract Types {
         uint48 depositID;
     }
 
+    /// @dev if opType == SettlementOp11, both order accept partial filling
+    /// @dev if opType == SettlementOp12, order1 does not accept partial filling while order2 does
+    /// @dev if opType == SettlementOp13, both orders do not accept partial filling
     struct SettlementOp1 {
         OpType opType;
         uint16 tokenID1;
