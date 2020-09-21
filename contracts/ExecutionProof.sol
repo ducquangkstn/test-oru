@@ -18,6 +18,7 @@ contract ExecutionProof {
     struct SettlementAccountProof {
         TokenProof tokenProof1;
         TokenProof tokenProof2;
+        TokenProof tokenProof0;
         bytes32 pubAccountHash;
         bytes32[32] accountSiblings;
     }
@@ -54,6 +55,7 @@ contract ExecutionProof {
     {
         (offset, parsed.tokenProof1) = readTokenProof(data, _offset);
         (offset, parsed.tokenProof2) = readTokenProof(data, offset);
+        (offset, parsed.tokenProof0) = readTokenProof(data, offset);
         (offset, parsed.pubAccountHash) = Bytes.readBytes32(data, offset);
         for (uint256 i = 0; i < 32; i++) {
             (offset, parsed.accountSiblings[i]) = Bytes.readBytes32(data, offset);

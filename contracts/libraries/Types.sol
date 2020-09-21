@@ -11,7 +11,7 @@ contract Types {
         SettlementOp13,
         SettlementOp21, // matching 1 order and 1 loo
         SettlementOp22,
-        SettlementOp31, // matching 2 loos
+        SettlementOp3, // matching 2 loos
         DepositToNew,
         Deposit,
         Withdraw,

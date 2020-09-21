@@ -16,27 +16,16 @@ contract Deserializer is Types {
     uint16 private constant FEE_EXP_MASK = 0x003f; // 2^6-1
     uint32 private constant VALID_PERIOD_MASK = 0x0fffffff; // 2^28 -1
 
-    function getMiniBlockHash(bytes memory miniBlock) internal view returns (bytes32) {
+    function getMiniBlockHash(bytes memory miniBlock) internal pure returns (bytes32) {
         uint256 txsLength = miniBlock.length - 64;
         bytes32 hashResult;
         // This is replacement for keccak(miniBlock[64:]) to save gas
         assembly {
-            let success := staticcall(
-                gas(),
-                0x2, // precompile keccack256
-                add(miniBlock, 0x40), // argsOffset
-                txsLength, // argsLength
-                hashResult,
-                0x20
-            )
-            switch success
-                case 0 {
-                    invalid()
-                }
+            hashResult := keccak256(add(miniBlock, 0x60), txsLength)
         }
-        bytes32 finalStateHash = Bytes.bytesToBytes32(miniBlock, 0);
-        bytes32 commitmennt = Bytes.bytesToBytes32(miniBlock, 32);
-        return keccak256(abi.encodePacked(finalStateHash, commitmennt, hashResult));
+        bytes32 commitmennt = Bytes.bytesToBytes32(miniBlock, 0);
+        bytes32 finalStateHash = Bytes.bytesToBytes32(miniBlock, 32);
+        return keccak256(abi.encodePacked(commitmennt, finalStateHash, hashResult));
     }
 
     function readSettlementOp1(
@@ -77,38 +66,63 @@ contract Deserializer is Types {
         newOffset = _offset + 5;
         uint32 mantisa = Bytes.bytesToUInt32(_data, _offset);
         uint8 exp = uint8(_data[_offset + 4]);
-        amount = uint256(mantisa)**uint256(exp);
+        amount = uint256(mantisa) * (10**uint256(exp));
     }
 
-    /// @dev 10 bit for mantisa, 6 bit for 
+    /// @dev 10 bit for mantisa, 6 bit for
     function readFee(bytes memory _data, uint256 _offset)
         internal
         pure
         returns (uint256 newOffset, uint256 amount)
     {
-        newOffset = _offset + 16;
+        newOffset = _offset + 2;
         uint16 tmp = Bytes.bytesToUInt16(_data, _offset);
         uint256 mantisa = tmp >> 6;
         uint256 exp = uint256(tmp & FEE_EXP_MASK);
-        amount = mantisa**exp;
+        amount = mantisa * (10**exp);
     }
 
+    /// @dev validPeriod is 28 bits
+    /// @param _data array of stream data to decode
+    /// @param _offset position of current cursor
+    /// @param isOdd if the first 4 bit or the last 4 bit should be ignored
     function readValidPeriod(
         bytes memory _data,
         uint256 _offset,
         bool isOdd
     ) internal pure returns (uint256 newOffset, uint32 validPeriod) {
         if (!isOdd) {
-            newOffset += 3;
+            newOffset = _offset + 3;
         } else {
-            newOffset += 4;
+            newOffset = _offset + 4;
         }
 
-        (newOffset, validPeriod) = Bytes.readUInt32(_data, _offset);
+        validPeriod = Bytes.bytesToUInt32(_data, _offset);
         if (isOdd) {
             validPeriod = validPeriod & VALID_PERIOD_MASK;
         } else {
             validPeriod = validPeriod >> 4;
         }
+    }
+
+    //TODO: comment this debug script on production code
+    function char(bytes1 b) internal pure returns (bytes1 c) {
+        if (uint8(b) < 10) {
+            return bytes1(uint8(b) + 0x30);
+        } else return bytes1(uint8(b) + 0x57);
+    }
+
+    function bytes32ToString(bytes32 b32) internal pure returns (string memory out) {
+        bytes memory s = new bytes(64);
+
+        for (uint256 i = 0; i < 32; i++) {
+            bytes1 b = bytes1(b32[i]);
+            bytes1 hi = bytes1(uint8(b) / 16);
+            bytes1 lo = bytes1(uint8(b) - 16 * uint8(hi));
+            s[i * 2] = char(hi);
+            s[i * 2 + 1] = char(lo);
+        }
+
+        out = string(s);
     }
 }

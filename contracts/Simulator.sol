@@ -176,67 +176,22 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
             return FraudProofType.SettlementRateMissMatch;
         }
 
-        uint256 amount1;
-        uint256 amount2;
-        uint256 leftOverFee;
-        bytes32 looHash = bytes32(0);
-        if (s.validSince1 <= s.validSince2) {
-            // fill with rate = s.rate1
-            amount2 = calAmountOut(s.amount1, s.rate1);
-            if (amount2 > s.amount2) {
-                amount2 = s.amount2;
-                amount1 = calAmountIn(s.amount2, s.rate1);
-            } else {
-                amount1 = s.amount1;
-            }
-        } else {
-            // fill with rate = s.rate2
-            amount1 = calAmountOut(s.amount2, s.rate2);
-            if (amount1 > s.amount1) {
-                amount1 = s.amount1;
-                amount2 = calAmountIn(s.amount1, s.rate2);
-            } else {
-                amount2 = s.amount2;
-            }
-        }
-        if (amount1 < s.amount1) {
-            // partial fill on order 1
-            if (s.opType != OpType.SettlementOp11) {
-                return FraudProofType.InvalidPartialFilled;
-            }
-            leftOverFee = (s.fee1 * (s.amount1 - amount1)) / s.amount1;
-            looHash = keccak256(
-                abi.encodePacked(
-                    s.accountID1,
-                    s.tokenID1,
-                    s.tokenID2,
-                    s.amount1 - amount1,
-                    s.rate1,
-                    s.validSince1,
-                    s.validPeriod1,
-                    leftOverFee
-                )
-            );
-        }
-        if (amount2 < s.amount2) {
-            if (s.opType == OpType.SettlementOp13) {
-                return FraudProofType.InvalidPartialFilled;
-            }
-            leftOverFee = (s.fee2 * (s.amount2 - amount2)) / s.amount2;
-            looHash = keccak256(
-                abi.encodePacked(
-                    s.accountID2,
-                    s.tokenID2,
-                    s.tokenID1,
-                    s.amount2 - amount2,
-                    s.rate2,
-                    s.validSince2,
-                    s.validPeriod2,
-                    leftOverFee
-                )
-            );
+        (
+            uint256 amount1,
+            uint256 amount2,
+            uint256 fee1,
+            uint256 fee2,
+            bytes32 looHash
+        ) = calculateSettlement1Result(s);
+
+        if (amount1< s.amount1 && s.opType != OpType.SettlementOp11) {
+            return FraudProofType.InvalidPartialFilled;
         }
 
+        if (amount2 < s.amount2 && s.opType == OpType.SettlementOp13) {
+            return FraudProofType.InvalidPartialFilled;
+        }
+        // proof acc1 has x token1
         (uint256 offset, SettlementProof memory proof) = readSettlementProof(proofData);
         bytes32 accountRoot = Tree.merkleTokenRoot(
             s.tokenID1,
@@ -252,6 +207,7 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
                 ),
             "miss-match stateRoot"
         );
+        // account.token1.amount1 -= amount1
         if (proof.accountProof1.tokenProof1.amount < amount1) {
             return FraudProofType.InsufficientAmount;
         }
@@ -260,6 +216,7 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
             proof.accountProof1.tokenProof1.amount - amount1,
             proof.accountProof1.tokenProof1.tokenSiblings
         );
+        // account1.token2.amount += amount2
         require(
             accountRoot ==
                 Tree.merkleTokenRoot(
@@ -269,11 +226,28 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
                 ),
             "accountRoot is miss-match"
         );
-        // calculate new state root for account1
         accountRoot = Tree.merkleTokenRoot(
             s.tokenID2,
             proof.accountProof1.tokenProof2.amount + amount2,
             proof.accountProof1.tokenProof2.tokenSiblings
+        );
+        // account1.feeToken -= fee1;
+        require(
+            accountRoot ==
+                Tree.merkleTokenRoot(
+                    FEE_TOKEN_INDEX,
+                    proof.accountProof1.tokenProof0.amount,
+                    proof.accountProof1.tokenProof0.tokenSiblings
+                ),
+            "accountRoot is miss-match"
+        );
+        if(proof.accountProof1.tokenProof0.amount < fee1) {
+            return FraudProofType.InsufficientAmount;
+        }
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID2,
+            proof.accountProof1.tokenProof0.amount - fee1,
+            proof.accountProof1.tokenProof0.tokenSiblings
         );
         data.stateData.stateRoot = Tree.merkleAccountRoot(
             s.accountID1,
@@ -296,14 +270,17 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
                 ),
             "miss-match stateRoot"
         );
-        if (proof.accountProof1.tokenProof2.amount < amount2) {
+
+        // account2.token2 -= amount2
+        if (proof.accountProof2.tokenProof2.amount < amount2) {
             return FraudProofType.InsufficientAmount;
         }
         accountRoot = Tree.merkleTokenRoot(
             s.tokenID2,
-            proof.accountProof1.tokenProof2.amount - amount2,
-            proof.accountProof1.tokenProof2.tokenSiblings
+            proof.accountProof2.tokenProof2.amount - amount2,
+            proof.accountProof2.tokenProof2.tokenSiblings
         );
+        // account1.token1 += amount1
         require(
             accountRoot ==
                 Tree.merkleTokenRoot(
@@ -313,12 +290,30 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
                 ),
             "accountRoot21 is miss-match"
         );
-        // calculate new state root for account1
         accountRoot = Tree.merkleTokenRoot(
             s.tokenID1,
             proof.accountProof2.tokenProof1.amount + amount1,
             proof.accountProof2.tokenProof1.tokenSiblings
         );
+        // account2.feeToken -= fee2;
+        require(
+            accountRoot ==
+                Tree.merkleTokenRoot(
+                    FEE_TOKEN_INDEX,
+                    proof.accountProof2.tokenProof0.amount,
+                    proof.accountProof2.tokenProof0.tokenSiblings
+                ),
+            "accountRoot is miss-match"
+        );
+        if(proof.accountProof2.tokenProof0.amount < fee2) {
+            return FraudProofType.InsufficientAmount;
+        }
+        accountRoot = Tree.merkleTokenRoot(
+            s.tokenID2,
+            proof.accountProof2.tokenProof0.amount - fee2,
+            proof.accountProof2.tokenProof0.tokenSiblings
+        );
+
         data.stateData.stateRoot = Tree.merkleAccountRoot(
             s.accountID2,
             keccak256(abi.encodePacked(accountRoot, proof.accountProof2.pubAccountHash)),
@@ -344,7 +339,73 @@ contract Simulator is Deserializer, PermissionGroups, ExecutionProof {
             );
         }
         require(offset == proofData.length, "not eof");
-        data.blockFee += s.fee1 + s.fee2 - leftOverFee;
+        data.blockFee += fee1 + fee2;
+    }
+
+    function calculateSettlement1Result(SettlementOp1 memory s)
+        internal
+        pure
+        returns (
+            uint256 amount1,
+            uint256 amount2,
+            uint256 fee1,
+            uint256 fee2,
+            bytes32 looHash
+        )
+    {
+        if (s.validSince1 <= s.validSince2) {
+            // fill with rate = s.rate1
+            amount2 = calAmountOut(s.amount1, s.rate1);
+            if (amount2 > s.amount2) {
+                amount2 = s.amount2;
+                amount1 = calAmountIn(s.amount2, s.rate1);
+            } else {
+                amount1 = s.amount1;
+            }
+        } else {
+            // fill with rate = s.rate2
+            amount1 = calAmountOut(s.amount2, s.rate2);
+            if (amount1 > s.amount1) {
+                amount1 = s.amount1;
+                amount2 = calAmountIn(s.amount1, s.rate2);
+            } else {
+                amount2 = s.amount2;
+            }
+        }
+
+        fee1 = s.fee1;
+        fee2 = s.fee2;
+        if (amount1 < s.amount1) { // partial fill on order 1
+            fee1 = (s.fee1 * amount1) / s.amount1;
+            looHash = keccak256(
+                abi.encodePacked(
+                    s.accountID1,
+                    s.tokenID1,
+                    s.tokenID2,
+                    s.amount1,
+                    s.fee1 - fee1,
+                    s.rate1,
+                    s.validSince1,
+                    s.validPeriod1
+                )
+            );
+        } else if (amount2 < s.amount2) { // partial fill on order 2
+            fee2 = (s.fee2 * amount2) / s.amount2;
+            looHash = keccak256(
+                abi.encodePacked(
+                    s.accountID2,
+                    s.tokenID2,
+                    s.tokenID1,
+                    s.amount2 - amount2,
+                    fee2,
+                    s.rate2,
+                    s.validSince2,
+                    s.validPeriod2
+                )
+            );
+        } else {
+            looHash = bytes32(0);
+        }
     }
 
     function calAmountOut(uint256 amountIn, uint256 rate) internal pure returns (uint256) {
